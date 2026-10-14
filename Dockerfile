@@ -42,5 +42,6 @@ EXPOSE 8000
 
 WORKDIR /app/backend
 
-# Shell form, so $PORT is expanded at run time rather than taken literally.
-CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'
+# Exec form so signals reach uvicorn directly, wrapped in sh because $PORT is
+# only known at run time -- Render assigns it.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'"]

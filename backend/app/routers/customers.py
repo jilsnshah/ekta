@@ -79,8 +79,8 @@ def list_customers(
     elif signed_in is False:
         stmt = stmt.where(PartyAccount.last_login_at.is_(None))
 
-    rows, total = paginate(db, stmt, page)
-    return as_page([customer_service.customer_out(db, a) for a in rows], total, page)
+    items, total = customer_service.customers_page(db, stmt, page)
+    return as_page(items, total, page)
 
 
 @router.get("/lookup", response_model=Optional[schemas.CustomerDetail])

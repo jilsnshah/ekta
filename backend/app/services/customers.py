@@ -12,7 +12,7 @@ themselves. Who typed it in does not matter.
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select
@@ -105,6 +105,114 @@ def add_company(
     db.add(company)
     db.flush()
     return company
+
+
+def _count_subqueries():
+    """Per-customer aggregates, as correlated subqueries.
+
+    Correlated rather than a query each: the database computes every figure
+    while building the row, so a page of customers is one round trip instead
+    of five per customer. On SQLite the difference is invisible; against a
+    network database it is the difference between 100ms and half a minute.
+    """
+    finished = [OrderStatus.DELIVERED.value, OrderStatus.CANCELLED.value]
+
+    # The same ownership rule as orders_of, but written as an explicit join
+    # rather than a nested IN. A nested subquery pulls PartyAccount into its
+    # own FROM clause, which silently breaks the correlation and counts every
+    # order in the table for every customer.
+    def owned_orders():
+        return (
+            select(func.count(TransportOrder.id))
+            .select_from(TransportOrder)
+            .outerjoin(Company, TransportOrder.company_id == Company.id)
+            .where(
+                or_(
+                    TransportOrder.placed_by_account_id == PartyAccount.id,
+                    Company.account_id == PartyAccount.id,
+                )
+            )
+            .correlate(PartyAccount)
+        )
+
+    orders_total = owned_orders().scalar_subquery()
+    orders_open = (
+        owned_orders().where(TransportOrder.status.notin_(finished)).scalar_subquery()
+    )
+    last_order = (
+        select(func.max(TransportOrder.created_at))
+        .select_from(TransportOrder)
+        .outerjoin(Company, TransportOrder.company_id == Company.id)
+        .where(
+            or_(
+                TransportOrder.placed_by_account_id == PartyAccount.id,
+                Company.account_id == PartyAccount.id,
+            )
+        )
+        .correlate(PartyAccount)
+        .scalar_subquery()
+    )
+    companies = (
+        select(func.count(Company.id))
+        .where(Company.account_id == PartyAccount.id)
+        .correlate(PartyAccount)
+        .scalar_subquery()
+    )
+    addresses = (
+        select(func.count(SavedPlace.id))
+        .where(SavedPlace.account_id == PartyAccount.id)
+        .correlate(PartyAccount)
+        .scalar_subquery()
+    )
+    return orders_total, orders_open, last_order, companies, addresses
+
+
+def customers_page(db: Session, stmt, params) -> Tuple[List[schemas.CustomerOut], int]:
+    """A page of customers with their figures, in two round trips.
+
+    `stmt` selects PartyAccount rows and carries the filtering and ordering;
+    the counts are attached here so callers cannot forget them.
+    """
+    totals, opens, last, companies, addresses = _count_subqueries()
+    rows_stmt = stmt.add_columns(totals, opens, last, companies, addresses)
+
+    total = (
+        db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
+    )
+    rows = db.execute(
+        rows_stmt.limit(params.page_size).offset(params.offset)
+    ).all()
+
+    # One more query for the names, rather than one per customer.
+    ids = [row[0].id for row in rows]
+    names: dict = {}
+    if ids:
+        for account_id, name in db.execute(
+            select(Company.account_id, Company.name)
+            .where(Company.account_id.in_(ids))
+            .order_by(Company.name)
+        ).all():
+            names.setdefault(account_id, []).append(name)
+
+    items = [
+        schemas.CustomerOut(
+            id=account.id,
+            phone=display_phone(account.phone),
+            full_name=account.full_name,
+            is_active=account.is_active,
+            created_at=account.created_at,
+            last_login_at=account.last_login_at,
+            company_names=names.get(account.id, []),
+            company_count=int(company_count),
+            order_count=int(order_count),
+            open_order_count=int(open_count),
+            address_count=int(address_count),
+            last_order_at=last_order_at,
+        )
+        for account, order_count, open_count, last_order_at, company_count, address_count
+        in rows
+    ]
+    return items, int(total)
 
 
 def customer_out(db: Session, account: PartyAccount) -> schemas.CustomerOut:
