@@ -1,0 +1,35 @@
+# Render blueprint: one web service, built from the Dockerfile.
+#
+# The API and the frontend ship together and are served from one origin,
+# because the frontend calls "/api/..." with no host -- which also means the
+# WebSocket needs no second origin and there is no CORS preflight.
+#
+# The database is Neon, not Render: set DATABASE_URL to the Neon connection
+# string. On an empty database the service seeds the demo fleet on first boot.
+services:
+  - type: web
+    name: ekta
+    runtime: docker
+    plan: free
+    # Ohio, to sit beside the Neon project in aws-us-east-2. Putting the
+    # service and the database in different regions adds a round trip to
+    # every query.
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/system/health
+    autoDeployTrigger: commit
+    envVars:
+      # Neon's connection string. Set in the Render dashboard or with
+      # `render env set` -- never committed.
+      - key: DATABASE_URL
+        sync: false
+      # Signs every session token. Generated once by Render and kept.
+      - key: JWT_SECRET
+        generateValue: true
+      # The portal and driver app accept this one code for any number. A
+      # placeholder until an SMS gateway is wired in; see app/config.py.
+      - key: PORTAL_OTP_FIXED
+        value: "12345"
+      - key: ALERT_SCAN_SECONDS
+        value: "60"

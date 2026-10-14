@@ -7,7 +7,7 @@ import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useLive } from '../lib/live'
 import type { SearchHit } from '../lib/types'
-import { Logo, LogoMark } from './brand'
+import { FelesCredit, Logo, LogoMark } from './brand'
 import {
   IconAssign,
   IconBell,
@@ -423,6 +423,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               <IconSignOut size={17} />
             </button>
           </div>
+          <div className="mt-2 border-t border-night-line pt-3">
+            <FelesCredit variant="badge" tone="dark" className="flex w-full justify-center" />
+          </div>
         </div>
       </aside>
 
@@ -441,6 +444,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </kbd>
           </button>
           <div className="ml-auto flex items-center gap-3">
+            <FelesCredit variant="badge" />
             <LiveIndicator />
           </div>
         </header>
@@ -653,6 +657,9 @@ function MoreSheet({
             <IconSignOut size={18} />
             Sign out
           </button>
+          <div className="mt-4">
+            <FelesCredit variant="panel" />
+          </div>
         </div>
       </div>
     </div>,

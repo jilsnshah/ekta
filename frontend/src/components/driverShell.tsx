@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { LogoMark } from './brand'
+import { FelesCredit, LogoMark } from './brand'
 import { IconHistory, IconRoute, IconSignOut } from './icons'
 
 const NAV = [
@@ -49,6 +49,9 @@ export function DriverShell({ children }: { children: ReactNode }) {
 
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))]">
         {children}
+        <div className="mt-8">
+          <FelesCredit variant="panel" />
+        </div>
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface-1/95 pb-safe backdrop-blur-md">

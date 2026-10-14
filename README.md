@@ -1,5 +1,9 @@
 # Ekta — Truck Fleet & Transport Order Management
 
+Designed and built by **[Feles AI](https://felesai.vercel.app/)** — an AI-native
+software engineering company based at IIT Gandhinagar, Gujarat, India.
+*Intelligence, engineered.*
+
 Three applications on one backend, one for each person in the chain:
 
 - a **control room** where one operator sees a 72-truck fleet on a single
@@ -574,6 +578,72 @@ capacity arithmetic, the stops in order, and the button that commits.
 
 ---
 
+## Deploying
+
+One web service and one database.
+
+**Database — Neon.** Any Postgres works; Neon is what this is pointed at. Take
+the connection string from the Neon console or the CLI:
+
+```bash
+neonctl connection-string production --project-id <id> --database-name neondb --pooled
+```
+
+`DATABASE_URL` accepts it as printed. `app/config.py` names the driver for
+SQLAlchemy (`postgresql://` becomes `postgresql+psycopg://`), because without
+it SQLAlchemy reaches for psycopg2, which is not installed. The pooled
+endpoint is the right one for a long-lived service.
+
+Seed it once, from anywhere with the string to hand:
+
+```bash
+cd backend && DATABASE_URL="postgresql://…" .venv/bin/python -m app.seed --reset
+```
+
+The service also seeds an empty database on first boot, so this is only to
+avoid doing it inside the first health check.
+
+**Service — Render.** `render.yaml` is a blueprint for one Docker web service.
+The `Dockerfile` builds the frontend with Node and ships it with the API, so
+**both are served from one origin** — which is what the frontend assumes: it
+calls `/api/...` with no host, so there is no CORS preflight and the
+WebSocket needs no second origin.
+
+```bash
+render services create --name ekta --type web_service \
+  --repo https://github.com/<you>/ekta --runtime image --region ohio --plan free
+render env set DATABASE_URL="postgresql://…" --resource ekta   # never commit this
+```
+
+Or point Render at the repo and let it read `render.yaml`. Keep the service
+in the region nearest the database — Ohio for a Neon project in
+`aws-us-east-2` — or every query pays a round trip.
+
+Set in the environment, not in the repo:
+
+| Variable | Why |
+| --- | --- |
+| `DATABASE_URL` | The Neon connection string |
+| `JWT_SECRET` | Signs every session token; the blueprint generates one |
+| `PORTAL_OTP_FIXED` | The placeholder OTP. Blank it to disable that sign-in |
+
+### One link per audience
+
+Three groups of people get three different URLs, each landing on the sign-in
+they need, so a driver is not asked to find their screen in a menu:
+
+| Link | Who | Lands on |
+| --- | --- | --- |
+| `/control` (or `/admin`) | The control room | Staff sign-in |
+| `/customer` (or `/portal`) | Billing parties | Mobile + OTP |
+| `/driver` | Drivers | Mobile + OTP |
+
+They are redirects into one app rather than three builds: one deploy, three
+doors. `/api/system/health` reports the truck count and which database is
+behind it, and is what Render's health check watches.
+
+---
+
 ## Tests
 
 ```bash
@@ -724,3 +794,12 @@ and no orders.
 - **The OTP is not real authentication**, for either the portal or the driver
   app -- both share `PORTAL_OTP_FIXED`. It is the single thing that must change
   before anyone outside the office is given a link. See the portal section.
+
+---
+
+<p align="center">
+  <img src="frontend/public/feles-ai.png" width="44" alt="Feles AI" /><br/>
+  <strong>Built by <a href="https://felesai.vercel.app/">Feles AI</a></strong><br/>
+  <em>Intelligence, engineered.</em><br/>
+  IIT Gandhinagar, Gujarat, India
+</p>

@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { Logo } from './brand'
+import { FelesCredit, Logo } from './brand'
 import { IconBuilding, IconChevronLeft, IconOrders, IconPin, IconPlus, IconSignOut } from './icons'
 import { Avatar } from './ui'
 import { STAGE_META } from '../lib/stage'
@@ -61,6 +61,12 @@ export function PortalShell({ children }: { children: ReactNode }) {
           </nav>
 
           <div className="ml-auto flex items-center gap-3">
+            {/* Wrapped rather than classed: "hidden" and the badge's own
+                "inline-flex" are both display utilities, and Tailwind settles
+                that by stylesheet order, not by the order given here. */}
+            <span className="hidden lg:block">
+              <FelesCredit variant="badge" />
+            </span>
             <span className="hidden text-right md:block">
               <span className="block text-sm font-medium text-ink">
                 {party?.full_name ?? 'Signed in'}
@@ -88,6 +94,15 @@ export function PortalShell({ children }: { children: ReactNode }) {
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 sm:pb-12">
         {children}
       </main>
+
+      <footer className="mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
+        <div className="flex flex-col items-center gap-2 border-t border-line pt-6 text-center sm:flex-row sm:justify-between sm:text-left">
+          <p className="text-xs text-ink-dim">
+            Ekta — fleet and transport order management
+          </p>
+          <FelesCredit />
+        </div>
+      </footer>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface-1/95 pb-safe backdrop-blur-md sm:hidden">
         <div className="grid h-16 grid-cols-4">

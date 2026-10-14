@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Logo } from './brand'
+import { FelesCredit, Logo } from './brand'
 import { IconCheck } from './icons'
 
 /**
@@ -87,9 +87,14 @@ export function AuthLayout({
               ))}
             </ul>
           </div>
-          <p className="mt-6 hidden text-sm text-on-night-dim/70 lg:block">
-            One operation, three views of every consignment.
-          </p>
+          <div className="mt-6 hidden lg:block">
+            <p className="text-sm text-on-night-dim/70">
+              One operation, three views of every consignment.
+            </p>
+            <div className="mt-5">
+              <FelesCredit variant="panel" tone="dark" />
+            </div>
+          </div>
         </div>
         <div className="hidden lg:block">
           <RouteArt />
@@ -121,6 +126,11 @@ export function AuthLayout({
             ))}
           </nav>
           {children}
+
+          {/* The brand panel's credit is desk-only, so the phone gets its own. */}
+          <div className="mt-10 lg:hidden">
+            <FelesCredit variant="panel" />
+          </div>
         </div>
       </main>
     </div>
