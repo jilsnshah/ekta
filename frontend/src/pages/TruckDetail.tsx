@@ -3,27 +3,25 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { usePaged } from '../lib/usePaged'
-import { fmtDate, fmtDateTime, fmtDayRelative, fmtNumber, fmtTons, titleCase } from '../lib/format'
+import { fmtDate, fmtNumber, fmtTons, titleCase } from '../lib/format'
 import { OPERATOR_SETTABLE_STATUSES, TRUCK_STATUS } from '../lib/status'
-import { MetaItem, PageHeader } from '../components/shell'
+import { IconAssign, IconEdit, IconPhone, IconTrips, IconTruck } from '../components/icons'
+import { PageBody, PageHeader } from '../components/shell'
 import { useToast } from '../components/toast'
+import { OrdersOnBoard, TripHistoryList } from '../components/tripList'
 import {
+  Avatar,
   Button,
   Callout,
   CapacityBar,
+  Code,
   EmptyState,
+  FactList,
   LinkButton,
-  OrderStatusBadge,
   Pagination,
   Panel,
   ProgressBar,
   Spinner,
-  Stat,
-  Table,
-  Td,
-  Th,
-  Tr,
-  TripStatusBadge,
   TruckStatusBadge,
 } from '../components/ui'
 import { TruckForm } from './Trucks'
@@ -68,43 +66,56 @@ export default function TruckDetail() {
     },
   })
 
-  if (truck.isLoading) return <Spinner label="Loading truck" />
-  if (!truck.data) return <EmptyState title="Truck not found" />
+  if (truck.isLoading)
+    return (
+      <PageBody>
+        <Spinner label="Loading truck" />
+      </PageBody>
+    )
+  if (!truck.data)
+    return (
+      <PageBody>
+        <EmptyState icon={<IconTruck size={20} />} title="Truck not found" />
+      </PageBody>
+    )
 
   const t = truck.data
   const onTrip = Boolean(t.current_trip_id)
 
   return (
-    <div className="p-6">
+    <PageBody>
       <PageHeader
-        back={{ to: '/trucks', label: 'All trucks' }}
+        back={{ to: '/trucks', label: 'Trucks' }}
+        eyebrow="Truck"
         title={
           <>
-            <span className="font-mono">{t.registration_number}</span>
+            <span className="font-mono tracking-tight">{t.registration_number}</span>
             <TruckStatusBadge status={t.status} />
           </>
         }
-        meta={
+        subtitle={
           <>
-            <MetaItem label="Capacity">{fmtTons(t.capacity_tons)}</MetaItem>
-            <MetaItem label="On board">
-              {fmtTons(t.capacity.current_load_tons)} · {t.capacity.order_count} orders
-            </MetaItem>
-            {t.base_city && <MetaItem label="Base">{t.base_city}</MetaItem>}
+            {fmtTons(t.capacity_tons)} capacity
+            {t.base_city && <> · based in {t.base_city}</>}
             {t.driver && (
-              <MetaItem label="Driver">
-                <Link to={`/drivers/${t.driver.id}`} className="text-brand hover:underline">
+              <>
+                {' · driven by '}
+                <Link to={`/drivers/${t.driver.id}`} className="font-medium text-ink hover:text-brand">
                   {t.driver.name}
                 </Link>
-              </MetaItem>
+              </>
             )}
           </>
         }
         actions={
           <>
-            <Button onClick={() => setEditing(true)}>Edit</Button>
+            <Button onClick={() => setEditing(true)}>
+              <IconEdit size={16} />
+              Edit
+            </Button>
             {onTrip && (
               <LinkButton to={`/trips/${t.current_trip_id}`} variant="primary">
+                <IconTrips size={16} />
                 Open {t.current_trip_code}
               </LinkButton>
             )}
@@ -126,126 +137,48 @@ export default function TruckDetail() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <div className="space-y-4">
           <Panel
             title="Load on board"
-            description={`${fmtTons(t.capacity.available_tons)} of free capacity`}
+            description={`${t.capacity.order_count} ${t.capacity.order_count === 1 ? 'order' : 'orders'} · ${fmtTons(t.capacity.available_tons)} free`}
+            bodyClassName=""
           >
-            <div className="border-b border-line p-5">
+            <div className="border-b border-line px-4 py-4 sm:px-5">
               <CapacityBar capacity={t.capacity} />
             </div>
             {t.orders.length === 0 ? (
               <EmptyState
+                icon={<IconTruck size={20} />}
                 title="Nothing on board"
                 hint="This truck is empty and ready to load."
                 action={
                   <LinkButton to="/assign" variant="primary" size="sm">
+                    <IconAssign size={15} />
                     Assign orders
                   </LinkButton>
                 }
               />
             ) : (
-              <Table
-                minWidth="46rem"
-                head={
-                  <>
-                    <Th>Order</Th>
-                    <Th align="right">Weight</Th>
-                    <Th>Pickup</Th>
-                    <Th>Drop</Th>
-                    <Th align="right">Pickup date</Th>
-                    <Th>Status</Th>
-                  </>
-                }
-              >
-                {t.orders.map((order) => (
-                  <Tr key={order.id} to={`/orders/${order.id}`}>
-                    <Td>
-                      <Link
-                        to={`/orders/${order.id}`}
-                        className="font-mono text-sm font-medium text-ink hover:text-brand"
-                      >
-                        {order.code}
-                      </Link>
-                      <div className="truncate text-xs text-ink-dim">{order.material}</div>
-                    </Td>
-                    <Td align="right" className="font-medium tabular-nums">
-                      {fmtTons(order.quantity_tons)}
-                    </Td>
-                    <Td className="text-ink-soft">{order.pickup_name}</Td>
-                    <Td className="text-ink-soft">{order.drop_name}</Td>
-                    <Td align="right">{fmtDayRelative(order.pickup_date)}</Td>
-                    <Td>
-                      <OrderStatusBadge status={order.status} size="sm" />
-                    </Td>
-                  </Tr>
-                ))}
-              </Table>
+              <OrdersOnBoard orders={t.orders} />
             )}
           </Panel>
 
           <Panel
             title="Trip history"
-            description={`${trips.page.total.toLocaleString()} trips`}
+            description={`${trips.page.total.toLocaleString('en-IN')} ${trips.page.total === 1 ? 'trip' : 'trips'}`}
+            bodyClassName=""
           >
             {trips.isInitialLoading ? (
-              <Spinner />
+              <Spinner rows={3} />
             ) : trips.items.length === 0 ? (
               <EmptyState
+                icon={<IconTrips size={20} />}
                 title="No trips yet"
                 hint="Assign orders to this truck to create its first trip."
               />
             ) : (
-              <Table
-                minWidth="48rem"
-                head={
-                  <>
-                    <Th>Trip</Th>
-                    <Th>Status</Th>
-                    <Th align="right">Cargo</Th>
-                    <Th align="right">Orders</Th>
-                    <Th className="w-44">Stops</Th>
-                    <Th align="right">Started</Th>
-                  </>
-                }
-              >
-                {trips.items.map((trip) => (
-                  <Tr key={trip.id} to={`/trips/${trip.id}`}>
-                    <Td>
-                      <Link
-                        to={`/trips/${trip.id}`}
-                        className="font-mono text-sm font-medium text-ink hover:text-brand"
-                      >
-                        {trip.code}
-                      </Link>
-                    </Td>
-                    <Td>
-                      <TripStatusBadge status={trip.status} size="sm" />
-                    </Td>
-                    <Td align="right" className="font-medium tabular-nums">
-                      {fmtTons(trip.total_cargo_tons)}
-                    </Td>
-                    <Td align="right" className="tabular-nums">
-                      {trip.order_count}
-                    </Td>
-                    <Td>
-                      <div className="flex items-center gap-2.5">
-                        <span className="shrink-0 text-sm tabular-nums">
-                          {trip.stops_completed}/{trip.stop_count}
-                        </span>
-                        <ProgressBar
-                          percent={trip.progress_percent}
-                          tone={trip.status === 'completed' ? 'success' : 'brand'}
-                        />
-                      </div>
-                    </Td>
-                    <Td align="right" className="text-ink-soft">
-                      {trip.started_at ? fmtDateTime(trip.started_at) : '—'}
-                    </Td>
-                  </Tr>
-                ))}
-              </Table>
+              <TripHistoryList trips={trips.items} show="driver" />
             )}
             {trips.items.length > 0 && (
               <Pagination
@@ -262,80 +195,70 @@ export default function TruckDetail() {
 
         <div className="space-y-4">
           {onTrip && (
-            <Panel title="Current trip">
-              <div className="space-y-4 p-5">
-                <Stat
-                  label="Trip"
-                  value={
-                    <Link
-                      to={`/trips/${t.current_trip_id}`}
-                      className="font-mono font-medium text-brand hover:underline"
-                    >
-                      {t.current_trip_code}
-                    </Link>
-                  }
-                />
-                <Stat
-                  label="Next stop"
-                  value={
-                    t.next_stop ? (
-                      <>
-                        {t.next_stop}
-                        <span className="text-ink-dim">
-                          {' '}
-                          · {t.next_stop_type === 'pickup' ? 'pick up' : 'deliver'}
-                        </span>
-                      </>
-                    ) : (
-                      'Awaiting dispatch'
-                    )
-                  }
-                />
-                <Stat
-                  label="Stops remaining"
-                  value={t.stops_remaining != null ? String(t.stops_remaining) : '—'}
-                  mono
-                />
-                <div>
-                  <ProgressBar
-                    percent={t.trip_progress_percent ?? 0}
-                    label="Trip progress"
-                  />
+            <Panel title="Current trip" bodyClassName="">
+              <div className="space-y-3 px-4 py-4 sm:px-5">
+                <div className="flex items-baseline justify-between gap-3">
+                  <Code to={`/trips/${t.current_trip_id}`} className="font-semibold text-brand">
+                    {t.current_trip_code}
+                  </Code>
+                  <span className="text-sm text-ink-dim tabular-nums">
+                    {t.stops_remaining != null
+                      ? `${t.stops_remaining} ${t.stops_remaining === 1 ? 'stop' : 'stops'} left`
+                      : ''}
+                  </span>
                 </div>
+                <ProgressBar percent={t.trip_progress_percent ?? 0} />
+                <p className="text-sm text-ink-soft">
+                  {t.next_stop ? (
+                    <>
+                      Next:{' '}
+                      <span
+                        className={
+                          t.next_stop_type === 'pickup'
+                            ? 'font-medium text-st-pickup'
+                            : 'font-medium text-st-delivery'
+                        }
+                      >
+                        {t.next_stop_type === 'pickup' ? 'pick up' : 'deliver'}
+                      </span>{' '}
+                      at <span className="font-medium text-ink">{t.next_stop}</span>
+                    </>
+                  ) : (
+                    'Awaiting dispatch'
+                  )}
+                </p>
               </div>
             </Panel>
           )}
 
-          <Panel title="Driver">
+          <Panel title="Driver" bodyClassName="">
             {t.driver ? (
-              <div className="space-y-4 p-5">
-                <Stat
-                  label="Name"
-                  value={
-                    <Link
-                      to={`/drivers/${t.driver.id}`}
-                      className="font-medium text-brand hover:underline"
-                    >
-                      {t.driver.name}
-                    </Link>
-                  }
-                />
-                <Stat
-                  label="Phone"
-                  value={
-                    <a
-                      href={`tel:${t.driver.phone.replace(/\s/g, '')}`}
-                      className="font-medium text-brand hover:underline"
-                    >
-                      {t.driver.phone}
-                    </a>
-                  }
-                />
-                <Stat label="Licence" value={t.driver.license_number} mono />
+              <div className="flex items-center gap-3 px-4 py-4 sm:px-5">
+                <Avatar name={t.driver.name} size={40} tone="brand" />
+                <div className="min-w-0 flex-1">
+                  <Link
+                    to={`/drivers/${t.driver.id}`}
+                    className="block truncate font-semibold text-ink hover:text-brand"
+                  >
+                    {t.driver.name}
+                  </Link>
+                  <p className="truncate font-mono text-xs text-ink-dim">
+                    {t.driver.license_number}
+                  </p>
+                </div>
+                <a
+                  href={`tel:${t.driver.phone.replace(/\s/g, '')}`}
+                  aria-label={`Call ${t.driver.name}`}
+                  title={t.driver.phone}
+                  className="grid size-10 place-items-center rounded-full bg-st-available/10 text-st-available transition-colors hover:bg-st-available/20"
+                >
+                  <IconPhone size={18} />
+                </a>
               </div>
             ) : (
-              <div className="p-5">
-                <Button size="sm" onClick={() => setEditing(true)}>
+              <div className="px-4 py-4 sm:px-5">
+                <p className="text-sm text-ink-dim">Nobody is driving this truck.</p>
+                <Button size="sm" className="mt-3" onClick={() => setEditing(true)}>
                   Assign a driver
                 </Button>
               </div>
@@ -345,53 +268,62 @@ export default function TruckDetail() {
           <Panel
             title="Status"
             description="Assigned and in transit follow the trip automatically."
+            bodyClassName=""
           >
-            <div className="flex flex-wrap gap-2 p-5">
+            <div className="flex flex-wrap gap-2 px-4 py-4 sm:px-5">
               {OPERATOR_SETTABLE_STATUSES.map((option) => {
+                const current = t.status === option
                 const disabled =
-                  setStatus.isPending ||
-                  t.status === option ||
-                  (option === 'available' && onTrip)
+                  setStatus.isPending || current || (option === 'available' && onTrip)
                 return (
-                  <Button
+                  <button
                     key={option}
-                    size="sm"
-                    variant={t.status === option ? 'primary' : 'secondary'}
+                    type="button"
                     disabled={disabled}
+                    aria-pressed={current}
                     title={
                       option === 'available' && onTrip
                         ? 'Complete or cancel the trip first'
                         : undefined
                     }
                     onClick={() => setStatus.mutate(option)}
+                    className={
+                      current
+                        ? 'inline-flex h-9 items-center gap-1.5 rounded-full bg-night px-3 text-sm font-medium text-on-night sm:h-8'
+                        : 'inline-flex h-9 items-center gap-1.5 rounded-full bg-surface-1 px-3 text-sm font-medium text-ink-soft ring-1 ring-line transition-colors ring-inset hover:bg-surface-2 hover:text-ink disabled:opacity-40 sm:h-8'
+                    }
                   >
+                    <span className={`size-1.5 rounded-full ${TRUCK_STATUS[option].dot}`} />
                     {TRUCK_STATUS[option].label}
-                  </Button>
+                  </button>
                 )
               })}
             </div>
           </Panel>
 
-          <Panel title="Vehicle">
-            <div className="grid grid-cols-2 gap-4 p-5">
-              <Stat label="Make" value={t.make ?? '—'} />
-              <Stat label="Model" value={t.model ?? '—'} />
-              <Stat label="Year" value={t.year ?? '—'} mono />
-              <Stat label="Axles" value={t.axles ?? '—'} mono />
-              <Stat label="Body" value={t.body_type ?? '—'} />
-              <Stat label="Fuel" value={t.fuel_type ?? '—'} />
-              <Stat label="Odometer" value={`${fmtNumber(Math.round(t.odometer_km))} km`} mono />
-              <Stat label="Insurance" value={fmtDate(t.insurance_expiry)} />
-              <Stat label="Fitness" value={fmtDate(t.fitness_expiry)} />
-            </div>
+          <Panel title="Vehicle" bodyClassName="">
+            <FactList
+              items={[
+                { label: 'Make and model', value: [t.make, t.model].filter(Boolean).join(' ') || '—' },
+                { label: 'Year', value: t.year ?? '—' },
+                { label: 'Body', value: t.body_type ?? '—' },
+                { label: 'Fuel', value: t.fuel_type ?? '—' },
+                { label: 'Axles', value: t.axles ?? '—' },
+                { label: 'Odometer', value: `${fmtNumber(Math.round(t.odometer_km))} km` },
+                { label: 'Insurance until', value: fmtDate(t.insurance_expiry) },
+                { label: 'Fitness until', value: fmtDate(t.fitness_expiry) },
+              ]}
+            />
             {t.notes && (
-              <p className="border-t border-line px-5 py-4 text-sm text-ink-soft">{t.notes}</p>
+              <p className="border-t border-line px-4 py-3.5 text-sm leading-relaxed text-ink-soft sm:px-5">
+                {t.notes}
+              </p>
             )}
           </Panel>
         </div>
       </div>
 
       {editing && <TruckForm open={editing} onClose={() => setEditing(false)} truck={t} />}
-    </div>
+    </PageBody>
   )
 }

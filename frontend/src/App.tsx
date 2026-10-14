@@ -16,6 +16,8 @@ import Drivers from './pages/Drivers'
 import DriverDetail from './pages/DriverDetail'
 import Alerts from './pages/Alerts'
 import Places from './pages/Places'
+import Customers from './pages/Customers'
+import CustomerDetail from './pages/CustomerDetail'
 import PortalLogin from './pages/portal/Login'
 import PortalOrders from './pages/portal/Orders'
 import PortalNewOrder from './pages/portal/NewOrder'
@@ -230,6 +232,22 @@ export default function App() {
         }
       />
       <Route
+        path="/customers"
+        element={
+          <RequireStaff>
+            <Customers />
+          </RequireStaff>
+        }
+      />
+      <Route
+        path="/customers/:id"
+        element={
+          <RequireStaff>
+            <CustomerDetail />
+          </RequireStaff>
+        }
+      />
+      <Route
         path="/places"
         element={
           <RequireStaff>
@@ -265,7 +283,7 @@ export default function App() {
             </DriverShell>
           ) : (
             <RequireStaff>
-              <EmptyState title="Page not found" hint="Use the sidebar to get back on track." />
+              <EmptyState title="Page not found" hint="Use the navigation to get back on track." />
             </RequireStaff>
           )
         }

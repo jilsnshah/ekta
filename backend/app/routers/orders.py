@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from .. import schemas, serializers
@@ -13,6 +13,7 @@ from ..database import get_db
 from ..pagination import Page, PageParams, as_page, paginate
 from ..models import (
     OPEN_ORDER_STATUSES,
+    Company,
     OrderStatus,
     SavedPlace,
     TransportOrder,
@@ -20,6 +21,7 @@ from ..models import (
 )
 from ..portal_security import display_phone
 from ..security import current_user, require_admin
+from ..services import customers as customer_service
 from ..services import places as place_service
 from ..services import trips as trip_service
 
@@ -62,6 +64,8 @@ def list_orders(
     source: Optional[str] = None,
     pickup_overdue: bool = False,
     pickup_within_days: Optional[int] = None,
+    customer_id: Optional[int] = None,
+    company_id: Optional[int] = None,
     search: Optional[str] = None,
     sort: str = Query("pickup_date", description=f"One of {', '.join(ORDER_SORTS)}"),
     descending: bool = False,
@@ -77,6 +81,10 @@ def list_orders(
         stmt = stmt.where(TransportOrder.status.in_(OPEN_VALUES))
     if billing_party:
         stmt = stmt.where(TransportOrder.billing_party.ilike(f"%{billing_party}%"))
+    if customer_id is not None:
+        stmt = stmt.where(customer_service.orders_of(customer_id))
+    if company_id is not None:
+        stmt = stmt.where(TransportOrder.company_id == company_id)
     if truck_id is not None:
         stmt = stmt.where(TransportOrder.truck_id == truck_id)
     if trip_id is not None:
@@ -191,9 +199,15 @@ def places(
     _user=Depends(current_user),
     page: PageParams = Depends(),
     mine_only: bool = False,
+    account_id: Optional[int] = None,
+    only_account: bool = False,
     search: Optional[str] = None,
 ):
     """The address book the control room can draw on.
+
+    ``account_id`` narrows it to one customer's book plus the control room's,
+    the customer's first -- what the order form wants once it knows who the
+    order is for. Add ``only_account`` for that customer's book alone.
 
     Its own entries sort first, then every billing party's, each labelled with
     whose it is -- the control room raises orders on the phone for customers
@@ -207,6 +221,18 @@ def places(
     )
     if mine_only:
         stmt = stmt.where(SavedPlace.account_id.is_(None))
+    if account_id is not None and only_account:
+        stmt = stmt.where(SavedPlace.account_id == account_id)
+    elif account_id is not None:
+        stmt = stmt.where(
+            or_(SavedPlace.account_id == account_id, SavedPlace.account_id.is_(None))
+        ).order_by(None).order_by(
+            # The customer's own first. A CASE rather than a boolean sort,
+            # because databases disagree on where NULL comparisons land.
+            case((SavedPlace.account_id == account_id, 0), else_=1),
+            SavedPlace.use_count.desc(),
+            SavedPlace.label,
+        )
     if search:
         term = f"%{search.strip()}%"
         stmt = stmt.where(
@@ -299,6 +325,21 @@ def create_order(
     _admin=Depends(require_admin),
 ):
     data = payload.model_dump()
+
+    # Billed to a customer's company: the order joins that customer, and the
+    # name on it is the company's. Otherwise a one-off typed name.
+    company = None
+    company_id = data.pop("company_id", None)
+    if company_id is not None:
+        company = db.get(Company, company_id)
+        if company is None:
+            raise HTTPException(status_code=404, detail="Company not found")
+        data["billing_party"] = company.name
+    elif not (data.get("billing_party") or "").strip():
+        raise HTTPException(
+            status_code=422, detail="Choose the customer's company, or type a billing party"
+        )
+
     for key in (
         "billing_party",
         "material",
@@ -313,16 +354,23 @@ def create_order(
             data[key] = data[key].strip() or None
 
     order = TransportOrder(
-        code=_next_code(db), status=OrderStatus.UNASSIGNED.value, **data
+        code=_next_code(db),
+        status=OrderStatus.UNASSIGNED.value,
+        company_id=company.id if company else None,
+        **data,
     )
     db.add(order)
 
-    # The control room's own book fills itself the same way.
+    # Addresses go into the book of whoever the order is for: the customer's
+    # own, so they find their godowns already saved when they sign in, or the
+    # control room's for a one-off with no account. The control room sees
+    # every book either way.
+    owner = company.account_id if company else None
     place_service.remember(
-        db, order.pickup_name, order.pickup_phone, order.pickup_address, None
+        db, order.pickup_name, order.pickup_phone, order.pickup_address, owner
     )
     place_service.remember(
-        db, order.drop_name, order.drop_phone, order.drop_address, None
+        db, order.drop_name, order.drop_phone, order.drop_address, owner
     )
     db.commit()
     db.refresh(order)

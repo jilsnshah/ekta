@@ -6,18 +6,24 @@ import { usePaged } from '../lib/usePaged'
 import { fmtDate } from '../lib/format'
 import { DRIVER_STATUS, DRIVER_STATUS_ORDER } from '../lib/status'
 import type { Driver, DriverStatus } from '../lib/types'
-import { MetaItem, PageHeader } from '../components/shell'
+import { IconDriver, IconPhone, IconPlus } from '../components/icons'
+import { MetaItem, PageBody, PageHeader } from '../components/shell'
 import { useToast } from '../components/toast'
 import {
+  Avatar,
   Button,
-  CellStack,
+  ChipBar,
+  ChipDivider,
+  Code,
   DriverStatusBadge,
   EmptyState,
   Field,
   FilterChip,
+  ListCard,
   Modal,
   Pagination,
   Panel,
+  ResponsiveList,
   SearchInput,
   Spinner,
   Table,
@@ -263,43 +269,43 @@ export default function Drivers() {
   const rows = list.items
   const counts = stats.data?.by_status ?? {}
   const withoutTruck = stats.data?.without_truck ?? 0
-  const matching = list.page.total
 
   return (
-    <div className="p-6">
+    <PageBody>
       <PageHeader
         title="Drivers"
         subtitle="Who is available, who is out on a trip, and which truck they hold."
         meta={
           <>
-            <MetaItem label="Total">
-              {(stats.data?.total ?? 0).toLocaleString()} drivers
-            </MetaItem>
-            {withoutTruck > 0 && (
-              <MetaItem label="Without a truck">{withoutTruck}</MetaItem>
-            )}
+            <MetaItem label="Total">{(stats.data?.total ?? 0).toLocaleString('en-IN')}</MetaItem>
+            {withoutTruck > 0 && <MetaItem label="Without a truck">{withoutTruck}</MetaItem>}
           </>
         }
         actions={
           <Button variant="primary" onClick={() => setAdding(true)}>
+            <IconPlus size={17} />
             Add driver
           </Button>
         }
       />
 
       <Panel bodyClassName="overflow-visible">
-        <div className="space-y-3 border-b border-line p-4">
+        <div className="space-y-3 border-b border-line p-4 sm:px-5">
           <SearchInput
             value={search}
             onChange={setSearch}
-            placeholder="Search name, phone, licence or truck"
-            className="max-w-md"
+            placeholder="Search name, phone, licence or city"
+            className="lg:max-w-md"
           />
-          <div className="flex flex-wrap items-center gap-1.5">
-            <FilterChip active={!status && !onlyUnassigned} onClick={() => {
-              setStatus(null)
-              setOnlyUnassigned(false)
-            }}>
+          <ChipBar>
+            <FilterChip
+              active={!status && !onlyUnassigned}
+              onClick={() => {
+                setStatus(null)
+                setOnlyUnassigned(false)
+              }}
+              count={stats.data?.total}
+            >
               All
             </FilterChip>
             {DRIVER_STATUS_ORDER.map((option) => {
@@ -316,7 +322,7 @@ export default function Drivers() {
                 </FilterChip>
               )
             })}
-            <span className="mx-1 h-5 w-px bg-line" aria-hidden />
+            <ChipDivider />
             <FilterChip
               active={onlyUnassigned}
               onClick={() => setOnlyUnassigned((v) => !v)}
@@ -324,121 +330,164 @@ export default function Drivers() {
             >
               Without a truck
             </FilterChip>
-            <span className="ml-auto text-sm tabular-nums text-ink-dim">
-              {matching.toLocaleString()} matching
-            </span>
-          </div>
+          </ChipBar>
         </div>
 
         {list.isInitialLoading ? (
           <Spinner label="Loading drivers" />
         ) : rows.length === 0 ? (
-          <EmptyState title="No drivers match" hint="Clear the filters to see everyone." />
+          <EmptyState
+            icon={<IconDriver size={20} />}
+            title="No drivers match"
+            hint="Clear the filters to see everyone."
+          />
         ) : (
           <>
-          <Table
-            minWidth="62rem"
-            head={
-              <>
-                <Th>Driver</Th>
-                <Th>Phone</Th>
-                <Th>Licence</Th>
-                <Th>Truck</Th>
-                <Th>Status</Th>
-                <Th>Current trip</Th>
-                <Th align="right">Trips done</Th>
-                <Th />
-              </>
-            }
-          >
-            {rows.map((driver) => (
-              <Tr key={driver.id} to={`/drivers/${driver.id}`}>
-                <Td>
-                  <CellStack
-                    primary={
-                      <Link to={`/drivers/${driver.id}`} className="hover:text-brand">
-                        {driver.name}
-                      </Link>
-                    }
-                    secondary={driver.home_city ?? driver.code}
-                  />
-                </Td>
-                <Td>
-                  <a
-                    href={`tel:${driver.phone.replace(/\s/g, '')}`}
-                    className="text-ink hover:text-brand"
-                  >
-                    {driver.phone}
-                  </a>
-                </Td>
-                <Td>
-                  <CellStack
-                    primary={<span className="font-mono text-sm">{driver.license_number}</span>}
-                    secondary={`Expires ${fmtDate(driver.license_expiry)}`}
-                  />
-                </Td>
-                <Td>
-                  {driver.truck_id ? (
-                    <Link
-                      to={`/trucks/${driver.truck_id}`}
-                      className="font-mono text-sm font-medium text-ink hover:text-brand"
-                    >
-                      {driver.truck_registration}
-                    </Link>
-                  ) : (
-                    <span className="text-sm font-medium text-st-delayed">None</span>
-                  )}
-                </Td>
-                <Td>
-                  <DriverStatusBadge status={driver.status} size="sm" />
-                </Td>
-                <Td>
-                  {driver.current_trip_id ? (
-                    <Link
-                      to={`/trips/${driver.current_trip_id}`}
-                      className="font-mono text-sm font-medium text-brand hover:underline"
-                    >
-                      {driver.current_trip_code}
-                    </Link>
-                  ) : (
-                    <span className="text-ink-dim">—</span>
-                  )}
-                </Td>
-                <Td align="right" className="tabular-nums">
-                  {driver.completed_trips}
-                </Td>
-                <Td align="right">
-                  <div className="flex justify-end gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(driver)}>
-                      Edit
-                    </Button>
-                    {driver.truck_id ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => unassign.mutate(driver.id)}
-                        disabled={unassign.isPending}
-                      >
-                        Unassign
-                      </Button>
-                    ) : (
-                      <Button size="sm" onClick={() => setAssigningTruck(driver)}>
-                        Assign truck
-                      </Button>
-                    )}
-                  </div>
-                </Td>
-              </Tr>
-            ))}
-          </Table>
-          <Pagination
-            page={list.page}
-            onPage={list.setPage}
-            pageSize={list.pageSize}
-            onPageSize={list.setPageSize}
-            noun="drivers"
-            busy={list.isPlaceholderData}
-          />
+            <ResponsiveList
+      breakpoint="xl"
+              cards={
+                <ul className="divide-y divide-line">
+                  {rows.map((driver) => (
+                    <ListCard key={driver.id} to={`/drivers/${driver.id}`}>
+                      <div className="flex items-center gap-3">
+                        <Avatar name={driver.name} size={38} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-semibold text-ink">{driver.name}</p>
+                          <p className="truncate text-xs text-ink-dim">
+                            {driver.truck_registration ? (
+                              <span className="font-mono">{driver.truck_registration}</span>
+                            ) : (
+                              <span className="font-medium text-st-delayed">No truck</span>
+                            )}
+                            {driver.home_city && ` · ${driver.home_city}`}
+                          </p>
+                        </div>
+                        <DriverStatusBadge status={driver.status} size="sm" />
+                      </div>
+                      <div className="mt-3 flex items-center gap-2">
+                        <a
+                          href={`tel:${driver.phone.replace(/\s/g, '')}`}
+                          className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-line font-mono text-sm text-ink active:bg-surface-2"
+                        >
+                          <IconPhone size={15} className="text-st-available" />
+                          {driver.phone}
+                        </a>
+                        {!driver.truck_id && (
+                          <Button size="sm" onClick={() => setAssigningTruck(driver)}>
+                            Assign truck
+                          </Button>
+                        )}
+                      </div>
+                    </ListCard>
+                  ))}
+                </ul>
+              }
+              table={
+                <Table
+                  minWidth="54rem"
+                  head={
+                    <>
+                      <Th>Driver</Th>
+                      <Th>Phone</Th>
+                      <Th>Licence</Th>
+                      <Th>Truck</Th>
+                      <Th>Status</Th>
+                      <Th align="right">Trips</Th>
+                      <Th className="w-0" />
+                    </>
+                  }
+                >
+                  {rows.map((driver) => (
+                    <Tr key={driver.id} to={`/drivers/${driver.id}`}>
+                      <Td>
+                        <div className="flex items-center gap-3">
+                          <Avatar name={driver.name} size={32} />
+                          <div className="min-w-0">
+                            <Link
+                              to={`/drivers/${driver.id}`}
+                              className="block truncate font-medium text-ink hover:text-brand"
+                            >
+                              {driver.name}
+                            </Link>
+                            <div className="truncate text-xs text-ink-dim">
+                              {driver.home_city ?? driver.code}
+                            </div>
+                          </div>
+                        </div>
+                      </Td>
+                      <Td>
+                        <a
+                          href={`tel:${driver.phone.replace(/\s/g, '')}`}
+                          className="font-mono text-[0.8125rem] text-ink hover:text-brand"
+                        >
+                          {driver.phone}
+                        </a>
+                      </Td>
+                      <Td>
+                        <div className="font-mono text-[0.8125rem] text-ink">
+                          {driver.license_number}
+                        </div>
+                        <div className="mt-0.5 text-xs text-ink-dim">
+                          Expires {fmtDate(driver.license_expiry)}
+                        </div>
+                      </Td>
+                      <Td>
+                        {driver.truck_id ? (
+                          <Code to={`/trucks/${driver.truck_id}`}>{driver.truck_registration}</Code>
+                        ) : (
+                          <span className="text-sm font-medium text-st-delayed">No truck</span>
+                        )}
+                        {driver.current_trip_id && (
+                          <div className="mt-0.5">
+                            <Link
+                              to={`/trips/${driver.current_trip_id}`}
+                              className="font-mono text-xs text-ink-dim hover:text-brand"
+                            >
+                              {driver.current_trip_code}
+                            </Link>
+                          </div>
+                        )}
+                      </Td>
+                      <Td>
+                        <DriverStatusBadge status={driver.status} size="sm" />
+                      </Td>
+                      <Td align="right" className="tabular-nums">
+                        {driver.completed_trips}
+                      </Td>
+                      <Td align="right">
+                        <div className="flex justify-end gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => setEditing(driver)}>
+                            Edit
+                          </Button>
+                          {driver.truck_id ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => unassign.mutate(driver.id)}
+                              disabled={unassign.isPending}
+                            >
+                              Unassign
+                            </Button>
+                          ) : (
+                            <Button size="sm" onClick={() => setAssigningTruck(driver)}>
+                              Assign truck
+                            </Button>
+                          )}
+                        </div>
+                      </Td>
+                    </Tr>
+                  ))}
+                </Table>
+              }
+            />
+            <Pagination
+              page={list.page}
+              onPage={list.setPage}
+              pageSize={list.pageSize}
+              onPageSize={list.setPageSize}
+              noun="drivers"
+              busy={list.isPlaceholderData}
+            />
           </>
         )}
       </Panel>
@@ -446,6 +495,6 @@ export default function Drivers() {
       {adding && <DriverForm open={adding} onClose={() => setAdding(false)} />}
       {editing && <DriverForm open onClose={() => setEditing(null)} driver={editing} />}
       <AssignTruckModal driver={assigningTruck} onClose={() => setAssigningTruck(null)} />
-    </div>
+    </PageBody>
   )
 }

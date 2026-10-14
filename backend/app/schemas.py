@@ -89,6 +89,51 @@ class CompanyUpdate(BaseModel):
     address: Optional[str] = None
 
 
+# --------------------------- customers (control room) ----------------------
+class CustomerOut(BaseModel):
+    """A billing-party account as the control room sees it."""
+
+    id: int
+    phone: str
+    full_name: Optional[str] = None
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+    #: None until the customer has signed in to the portal themselves.
+    last_login_at: Optional[datetime] = None
+    company_names: List[str] = []
+    company_count: int = 0
+    order_count: int = 0
+    open_order_count: int = 0
+    address_count: int = 0
+    last_order_at: Optional[datetime] = None
+
+
+class CompanyAdminOut(CompanyOut):
+    """A company with the customer it belongs to."""
+
+    customer_id: int
+    customer_name: Optional[str] = None
+    customer_phone: str
+
+
+class CustomerDetail(CustomerOut):
+    companies: List[CompanyAdminOut] = []
+
+
+class CustomerCreate(BaseModel):
+    """A customer added by the control room, usually while on the phone."""
+
+    phone: str = Field(min_length=6, max_length=24)
+    full_name: Optional[str] = Field(default=None, max_length=120)
+    #: Their first company, so an order can be raised in the same breath.
+    company: Optional[CompanyCreate] = None
+
+
+class CustomerUpdate(BaseModel):
+    full_name: Optional[str] = Field(default=None, max_length=120)
+    is_active: Optional[bool] = None
+
+
 class PortalOrderCreate(BaseModel):
     """An order raised by a billing party for one of its own companies."""
 
@@ -136,6 +181,8 @@ class PortalOrderBrief(BaseModel):
     truck_registration: Optional[str] = None
     stage: str
     stage_detail: str
+    #: True when the control room booked it for them, so the portal can say so.
+    booked_by_us: bool = False
 
 
 class PortalOrderOut(PortalOrderBrief):
@@ -336,6 +383,10 @@ class OrderOut(OrderBrief):
     #: Who placed it, when it came through the portal.
     placed_by_phone: Optional[str] = None
     company_id: Optional[int] = None
+    #: The customer the order belongs to, whoever raised it.
+    customer_id: Optional[int] = None
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
     pickup_phone: Optional[str] = None
     pickup_address: str
     drop_phone: Optional[str] = None
@@ -352,9 +403,15 @@ class OrderOut(OrderBrief):
 
 
 class OrderCreate(BaseModel):
-    """Weight is always tons, and both places are typed in full."""
+    """Weight is always tons, and both places are typed in full.
 
-    billing_party: str = Field(min_length=1, max_length=160)
+    ``company_id`` bills the order to a customer's company, which links it to
+    that customer: it appears in their portal the moment they sign in. A bare
+    ``billing_party`` name is still accepted for a one-off with no account.
+    """
+
+    company_id: Optional[int] = None
+    billing_party: Optional[str] = Field(default=None, min_length=1, max_length=160)
     order_number: Optional[str] = Field(default=None, max_length=64)
     material: str = Field(min_length=1, max_length=120)
     quantity_tons: float = Field(gt=0)

@@ -41,6 +41,18 @@ def order_brief(order: TransportOrder) -> schemas.OrderBrief:
     )
 
 
+def _customer_fields(order: TransportOrder) -> dict:
+    """The customer an order belongs to: its company's owner, else its placer."""
+    account = order.company.account if order.company else order.placed_by
+    if account is None:
+        return {"customer_id": None, "customer_name": None, "customer_phone": None}
+    return {
+        "customer_id": account.id,
+        "customer_name": account.full_name,
+        "customer_phone": display_phone(account.phone),
+    }
+
+
 def order_out(order: TransportOrder) -> schemas.OrderOut:
     return schemas.OrderOut(
         **order_brief(order).model_dump(),
@@ -48,6 +60,7 @@ def order_out(order: TransportOrder) -> schemas.OrderOut:
             display_phone(order.placed_by.phone) if order.placed_by else None
         ),
         company_id=order.company_id,
+        **_customer_fields(order),
         pickup_phone=order.pickup_phone,
         pickup_address=order.pickup_address,
         drop_phone=order.drop_phone,

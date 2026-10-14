@@ -9,12 +9,15 @@ from sqlalchemy.orm import Session
 from .. import schemas
 from ..database import get_db
 from ..models import (
+    Company,
     Driver,
+    PartyAccount,
     LOAD_BEARING_ORDER_STATUSES,
     TransportOrder,
     Trip,
     Truck,
 )
+from ..portal_security import display_phone
 from ..security import current_user
 
 router = APIRouter(prefix="/api/search", tags=["search"])
@@ -113,6 +116,32 @@ def search(
                 ),
                 badge=order.status,
                 href=f"/orders/{order.id}",
+            )
+        )
+
+    # Customers and their companies, so a name or a number heard on the phone
+    # finds the account directly.
+    digits = "".join(ch for ch in q if ch.isdigit())
+    customer_conditions = [
+        PartyAccount.full_name.ilike(term),
+        PartyAccount.id.in_(select(Company.account_id).where(Company.name.ilike(term))),
+    ]
+    if len(digits) >= 3:
+        customer_conditions.append(PartyAccount.phone.ilike(f"%{digits}%"))
+    for account in db.scalars(
+        select(PartyAccount).where(or_(*customer_conditions)).limit(limit)
+    ):
+        names = ", ".join(c.name for c in account.companies[:3])
+        hits.append(
+            schemas.SearchHit(
+                kind="customer",
+                id=account.id,
+                label=account.full_name or display_phone(account.phone),
+                sublabel=" - ".join(
+                    part for part in (display_phone(account.phone), names) if part
+                ),
+                badge="customer",
+                href=f"/customers/{account.id}",
             )
         )
 

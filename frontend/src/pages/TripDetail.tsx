@@ -7,18 +7,34 @@ import { fmtDateTime, fmtDay, fmtDayRelative, fmtTons } from '../lib/format'
 import { sequenceProblem } from '../lib/sequence'
 import type { Trip, TripStop } from '../lib/types'
 import { moveItem, useSortable, type SortableItemProps } from '../components/sortable'
-import { MetaItem, PageHeader } from '../components/shell'
+import {
+  IconArrowDown,
+  IconArrowUp,
+  IconCheck,
+  IconGrip,
+  IconPhone,
+  IconTrips,
+} from '../components/icons'
+import { PickupWhen, Route } from '../components/orderBits'
+import { PageBody, PageHeader } from '../components/shell'
 import { useToast } from '../components/toast'
 import {
+  Avatar,
   Button,
   Callout,
   CapacityBar,
+  Code,
   EmptyState,
+  FactList,
+  IconButton,
+  ListCard,
+  Modal,
   OrderStatusBadge,
   Panel,
   ProgressBar,
+  ResponsiveList,
   Spinner,
-  Stat,
+  StickyActionBar,
   StopTypeBadge,
   Table,
   Td,
@@ -57,14 +73,15 @@ function StopRow({
   reorderable: boolean
 }) {
   const done = stop.status === 'completed'
+  const movable = !done && (canReorder.up || canReorder.down)
 
   return (
     <li
       {...dragProps}
       className={clsx(
-        'relative flex gap-4 px-5 py-4 transition-colors',
-        isNext && 'bg-brand-tint/60',
-        reorderable && !done && 'cursor-grab active:cursor-grabbing',
+        'relative flex gap-3.5 px-4 py-4 transition-colors sm:gap-4 sm:px-5',
+        isNext && 'bg-brand-tint/50',
+        reorderable && !done && 'lg:cursor-grab lg:active:cursor-grabbing',
         isBeingDragged && 'opacity-40',
       )}
     >
@@ -73,28 +90,32 @@ function StopRow({
         <span
           aria-hidden
           className={clsx(
-            'pointer-events-none absolute inset-x-0 h-0.5 bg-brand',
+            'pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-brand',
             dragIndicator === 'above' ? '-top-px' : '-bottom-px',
           )}
         />
       )}
+
       {/* Rail */}
       <div className="flex flex-col items-center">
         <span
           className={clsx(
-            'grid size-7 shrink-0 place-items-center rounded-full border-2 text-xs font-semibold tabular-nums',
+            'grid size-8 shrink-0 place-items-center rounded-full text-sm font-semibold tabular-nums',
             done
-              ? 'border-st-available bg-st-available text-on-brand'
+              ? 'bg-st-available text-white'
               : isNext
-                ? 'border-brand bg-surface-1 text-brand'
-                : 'border-line bg-surface-1 text-ink-dim',
+                ? 'bg-surface-1 text-brand ring-2 ring-brand'
+                : 'bg-surface-1 text-ink-dim ring-1 ring-line-strong',
           )}
         >
-          {done ? '✓' : stop.sequence + 1}
+          {done ? <IconCheck size={16} strokeWidth={2.2} /> : stop.sequence + 1}
         </span>
         {!isLast && (
           <span
-            className={clsx('mt-1.5 w-0.5 flex-1 rounded', done ? 'bg-st-available/35' : 'bg-line')}
+            className={clsx(
+              'mt-2 -mb-4 w-0.5 flex-1 rounded-full',
+              done ? 'bg-st-available/40' : 'bg-line',
+            )}
           />
         )}
       </div>
@@ -102,52 +123,86 @@ function StopRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <StopTypeBadge type={stop.stop_type} />
-          <span className="truncate text-base font-semibold text-ink">
-            {stop.place_name}
-          </span>
           {isNext && !done && (
-            <span className="label text-brand">Next</span>
+            <span className="text-xs font-semibold text-brand">Next stop</span>
           )}
         </div>
+        <p className="mt-1.5 text-base font-semibold text-ink">{stop.place_name}</p>
+        <p className="mt-0.5 text-sm leading-relaxed text-ink-soft">{stop.place_address}</p>
 
-        <p className="mt-1 text-sm leading-relaxed text-ink-soft">
-          {stop.place_address}
-        </p>
-
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
           {stop.place_phone && (
             <a
               href={`tel:${stop.place_phone.replace(/\s/g, '')}`}
-              className="font-medium text-brand hover:underline"
+              className="inline-flex items-center gap-1.5 font-mono font-medium text-ink-soft hover:text-brand"
             >
+              <IconPhone size={13} />
               {stop.place_phone}
             </a>
           )}
           {done && (
             <span className="font-medium text-st-available">
-              Completed {fmtDateTime(stop.completed_at)}
+              Done {fmtDateTime(stop.completed_at)}
             </span>
           )}
         </div>
 
         {stop.orders.length > 0 && (
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {stop.orders.map((order) => (
               <Link
                 key={order.id}
                 to={`/orders/${order.id}`}
-                className="rounded-md border border-line bg-surface-2 px-2 py-1 text-xs transition-colors hover:border-brand/40 hover:text-brand"
+                className="inline-flex h-7 items-center gap-1.5 rounded-md bg-surface-1 px-2 text-xs ring-1 ring-line transition-colors hover:text-brand hover:ring-brand/40"
               >
                 <span className="font-mono font-medium">{order.code}</span>
-                <span className="text-ink-dim"> · {fmtTons(order.quantity_tons)}</span>
+                <span className="text-ink-dim">{fmtTons(order.quantity_tons)}</span>
               </Link>
             ))}
           </div>
         )}
+
+        {!done && (
+          <div className="mt-3.5 flex items-center gap-2 sm:hidden">
+            <Button
+              size="sm"
+              variant={isNext && !disableComplete ? 'primary' : 'secondary'}
+              onClick={onComplete}
+              disabled={completing || disableComplete}
+              className="flex-1"
+            >
+              {completing
+                ? 'Saving…'
+                : stop.stop_type === 'pickup'
+                  ? 'Mark picked up'
+                  : 'Mark delivered'}
+            </Button>
+            {movable && (
+              <>
+                <IconButton
+                  label={`Move ${stop.place_name} earlier`}
+                  variant="secondary"
+                  onClick={() => onMove(-1)}
+                  disabled={!canReorder.up}
+                >
+                  <IconArrowUp size={17} />
+                </IconButton>
+                <IconButton
+                  label={`Move ${stop.place_name} later`}
+                  variant="secondary"
+                  onClick={() => onMove(1)}
+                  disabled={!canReorder.down}
+                >
+                  <IconArrowDown size={17} />
+                </IconButton>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-2">
-        {!done && (
+      {!done && (
+        <div className="hidden shrink-0 flex-col items-end gap-2 sm:flex">
           <Button
             size="sm"
             variant={isNext && !disableComplete ? 'primary' : 'secondary'}
@@ -160,43 +215,32 @@ function StopRow({
                 ? 'Mark picked up'
                 : 'Mark delivered'}
           </Button>
-        )}
-        {!done && (canReorder.up || canReorder.down) && (
-          <div className="flex items-center gap-1">
-            {/* Visual affordance for the drag; the row itself is the handle. */}
-            <span
-              aria-hidden
-              title="Drag to reorder"
-              className="grid size-6 place-items-center text-ink-dim"
-            >
-              <svg viewBox="0 0 16 16" className="size-3.5" fill="currentColor">
-                <circle cx="6" cy="3" r="1.3" />
-                <circle cx="10" cy="3" r="1.3" />
-                <circle cx="6" cy="8" r="1.3" />
-                <circle cx="10" cy="8" r="1.3" />
-                <circle cx="6" cy="13" r="1.3" />
-                <circle cx="10" cy="13" r="1.3" />
-              </svg>
-            </span>
-            <button
-              onClick={() => onMove(-1)}
-              disabled={!canReorder.up}
-              className="grid size-6 place-items-center rounded border border-line text-ink-dim hover:bg-surface-2 hover:text-ink disabled:opacity-30"
-              aria-label={`Move ${stop.place_name} earlier`}
-            >
-              ↑
-            </button>
-            <button
-              onClick={() => onMove(1)}
-              disabled={!canReorder.down}
-              className="grid size-6 place-items-center rounded border border-line text-ink-dim hover:bg-surface-2 hover:text-ink disabled:opacity-30"
-              aria-label={`Move ${stop.place_name} later`}
-            >
-              ↓
-            </button>
-          </div>
-        )}
-      </div>
+          {movable && (
+            <div className="flex items-center gap-1">
+              {/* The row itself is the drag handle; the grip just says so. */}
+              <span aria-hidden title="Drag to reorder" className="hidden px-1 text-ink-dim lg:block">
+                <IconGrip size={15} />
+              </span>
+              <IconButton
+                label={`Move ${stop.place_name} earlier`}
+                onClick={() => onMove(-1)}
+                disabled={!canReorder.up}
+                className="sm:size-8"
+              >
+                <IconArrowUp size={15} />
+              </IconButton>
+              <IconButton
+                label={`Move ${stop.place_name} later`}
+                onClick={() => onMove(1)}
+                disabled={!canReorder.down}
+                className="sm:size-8"
+              >
+                <IconArrowDown size={15} />
+              </IconButton>
+            </div>
+          )}
+        </div>
+      )}
     </li>
   )
 }
@@ -209,6 +253,7 @@ export default function TripDetail() {
   const queryClient = useQueryClient()
   const toast = useToast()
   const [draft, setDraft] = useState<TripStop[] | null>(null)
+  const [confirmCancel, setConfirmCancel] = useState(false)
 
   const trip = useQuery({
     queryKey: ['trip', tripId],
@@ -246,7 +291,7 @@ export default function TripDetail() {
     mutationFn: () => api.replanTrip(tripId),
     onSuccess: (t) => {
       setDraft(null)
-      toast.success('Stops re-planned', `${t.stops.length} stops, ordered by deadline.`)
+      toast.success('Stops re-planned', `${t.stops.length} stops, collected in pickup-date order.`)
       invalidate()
     },
     onError: fail('Could not re-plan the stops'),
@@ -286,6 +331,7 @@ export default function TripDetail() {
   const cancel = useMutation({
     mutationFn: () => api.cancelTrip(tripId),
     onSuccess: (t) => {
+      setConfirmCancel(false)
       toast.success(`${t.code} cancelled`, 'Unloaded orders have returned to the backlog.')
       invalidate()
     },
@@ -320,8 +366,18 @@ export default function TripDetail() {
   // rather than next to the handlers that use it.
   const sortable = useSortable({ onMove: moveStopTo, isLocked })
 
-  if (trip.isLoading) return <Spinner label="Loading trip" />
-  if (!t) return <EmptyState title="Trip not found" />
+  if (trip.isLoading)
+    return (
+      <PageBody>
+        <Spinner label="Loading trip" />
+      </PageBody>
+    )
+  if (!t)
+    return (
+      <PageBody>
+        <EmptyState icon={<IconTrips size={20} />} title="Trip not found" />
+      </PageBody>
+    )
 
   const capacity = {
     capacity_tons: t.truck_capacity_tons ?? t.total_cargo_tons,
@@ -360,128 +416,113 @@ export default function TripDetail() {
 
   const live = t.status === 'in_progress'
 
+  const editable = t.status === 'planned' || live
+
   return (
-    <div className="p-6">
+    <PageBody className={clsx(pendingReorder && 'max-lg:pb-28')}>
       <PageHeader
-        back={{ to: '/trips', label: 'All trips' }}
+        back={{ to: '/trips', label: 'Trips' }}
+        eyebrow="Trip"
         title={
           <>
-            <span className="font-mono">{t.code}</span>
+            <span className="font-mono tracking-tight">{t.code}</span>
             <TripStatusBadge status={t.status} />
           </>
         }
-        meta={
+        subtitle={
           <>
-            <MetaItem label="Truck">
-              <Link
-                to={`/trucks/${t.truck_id}`}
-                className="font-mono text-brand hover:underline"
-              >
-                {t.truck_registration}
-              </Link>
-            </MetaItem>
+            <Link to={`/trucks/${t.truck_id}`} className="font-mono font-medium text-ink hover:text-brand">
+              {t.truck_registration}
+            </Link>
             {t.driver && (
-              <MetaItem label="Driver">
-                <Link to={`/drivers/${t.driver.id}`} className="text-brand hover:underline">
+              <>
+                {' · '}
+                <Link to={`/drivers/${t.driver.id}`} className="font-medium text-ink hover:text-brand">
                   {t.driver.name}
                 </Link>
-                <span className="ml-2 font-normal text-ink-soft">{t.driver.phone}</span>
-              </MetaItem>
+              </>
             )}
-            <MetaItem label="Cargo">
-              {fmtTons(t.total_cargo_tons)} · {t.orders.length} orders
-            </MetaItem>
+            {' · '}
+            {fmtTons(t.total_cargo_tons)} across {t.orders.length}{' '}
+            {t.orders.length === 1 ? 'order' : 'orders'}
           </>
         }
         actions={
-          <>
-            {(t.status === 'planned' || live) && (
-              <>
-                <Button
-                  variant="danger"
-                  onClick={() => cancel.mutate()}
-                  disabled={cancel.isPending}
-                >
-                  Cancel trip
-                </Button>
-                <Button onClick={() => replan.mutate()} disabled={replan.isPending}>
-                  {replan.isPending ? 'Re-planning…' : 'Re-plan stops'}
-                </Button>
-              </>
-            )}
-            {t.status === 'planned' && (
-              <Button variant="primary" onClick={() => start.mutate()} disabled={start.isPending}>
-                {start.isPending ? 'Dispatching…' : 'Start trip'}
+          editable ? (
+            <>
+              <Button onClick={() => replan.mutate()} disabled={replan.isPending}>
+                {replan.isPending ? 'Re-planning…' : 'Re-plan stops'}
               </Button>
-            )}
-          </>
+              {t.status === 'planned' && (
+                <Button variant="primary" onClick={() => start.mutate()} disabled={start.isPending}>
+                  {start.isPending ? 'Dispatching…' : 'Start trip'}
+                </Button>
+              )}
+            </>
+          ) : undefined
         }
       />
 
       {t.status === 'planned' && (
         <div className="mb-4">
           <Callout tone="info">
-            This trip has not been dispatched. Start it to begin closing stops.
+            This trip has not been dispatched yet. Start it to begin closing stops.
           </Callout>
         </div>
       )}
 
-      {/* Four figures: load, how far through, what is next, and the clock. */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="card px-4 py-3.5">
-          <span className="label">Load</span>
+      {/* One strip, four facts: load, progress, what is next, and the clock. */}
+      <section className="card grid grid-cols-2 gap-px overflow-hidden bg-line xl:grid-cols-4 [&>*]:bg-surface-1 [&>*]:px-4 [&>*]:py-4 sm:[&>*]:px-5">
+        <div>
+          <p className="text-sm text-ink-dim">Load</p>
           <div className="mt-2">
-            <CapacityBar capacity={capacity} />
+            <CapacityBar capacity={capacity} size="sm" />
           </div>
         </div>
-        <div className="card px-4 py-3.5">
-          <span className="label">Stops completed</span>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-ink">
+        <div>
+          <p className="text-sm text-ink-dim">Stops done</p>
+          <p className="mt-0.5 text-xl font-semibold tabular-nums text-ink">
             {t.stops_completed}
-            <span className="text-base font-normal text-ink-dim"> of {stops.length}</span>
+            <span className="text-sm font-normal text-ink-dim"> of {stops.length}</span>
           </p>
-          <div className="mt-2">
+          <div className="mt-1.5">
             <ProgressBar
               percent={t.progress_percent}
               tone={t.status === 'completed' ? 'success' : 'brand'}
             />
           </div>
         </div>
-        <div className="card px-4 py-3.5">
-          <span className="label">Next stop</span>
-          <p className="mt-1 truncate text-base font-semibold text-ink">
+        <div className="min-w-0">
+          <p className="text-sm text-ink-dim">Next stop</p>
+          <p className="mt-1 truncate font-semibold text-ink">
             {nextStop?.place_name ?? 'All stops done'}
           </p>
           <p className="mt-0.5 text-xs text-ink-dim">
-            {nextStop
-              ? nextStop.stop_type === 'pickup'
-                ? 'Collect here'
-                : 'Deliver here'
-              : '—'}
+            {nextStop ? (nextStop.stop_type === 'pickup' ? 'Collect here' : 'Deliver here') : '—'}
           </p>
         </div>
-        <div className="card px-4 py-3.5">
-          <span className="label">Next collection</span>
-          <p className="mt-1 text-base font-semibold text-ink">
+        <div className="min-w-0">
+          <p className="text-sm text-ink-dim">Next collection</p>
+          <p className="mt-1 truncate font-semibold text-ink">
             {nextPickup ? fmtDayRelative(nextPickup) : '—'}
           </p>
-          <p className="mt-0.5 text-xs text-ink-dim">
+          <p className="mt-0.5 truncate text-xs text-ink-dim">
             {nextPickup ? fmtDay(nextPickup) : 'Everything collected'}
           </p>
         </div>
-      </div>
+      </section>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_20rem]">
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <Panel
           title="Stops"
           description={
-            t.status === 'completed' || t.status === 'cancelled'
-              ? `${stops.length} stops`
-              : `${stops.length} stops · drag, or use the arrows, to reorder`
+            editable
+              ? `${stops.length} stops · drag, or use the arrows, to reorder`
+              : `${stops.length} stops`
           }
           actions={
             pendingReorder ? (
-              <>
+              <div className="hidden items-center gap-2 lg:flex">
                 <Button size="sm" onClick={() => setDraft(null)}>
                   Reset
                 </Button>
@@ -493,7 +534,7 @@ export default function TripDetail() {
                 >
                   {reorder.isPending ? 'Saving…' : 'Save order'}
                 </Button>
-              </>
+              </div>
             ) : null
           }
           bodyClassName=""
@@ -503,16 +544,14 @@ export default function TripDetail() {
               {problem ? (
                 <Callout tone="danger">{problem}</Callout>
               ) : (
-                <Callout tone="warning">
-                  Stop order changed but not saved yet.
-                </Callout>
+                <Callout tone="warning">The stop order has changed but is not saved yet.</Callout>
               )}
             </div>
           )}
           {stops.length === 0 ? (
             <EmptyState title="No stops planned" />
           ) : (
-            <ol className="divide-y divide-line">
+            <ol>
               {stops.map((stop, index) => (
                 <StopRow
                   key={stop.id}
@@ -537,104 +576,188 @@ export default function TripDetail() {
           )}
         </Panel>
 
-        <Panel title="Truck and driver">
-          <div className="space-y-4 p-5">
-            <Stat
-              label="Truck"
-              value={
-                <Link
-                  to={`/trucks/${t.truck_id}`}
-                  className="font-mono font-medium text-brand hover:underline"
-                >
-                  {t.truck_registration}
-                </Link>
-              }
-            />
-            <Stat label="Rated capacity" value={fmtTons(t.truck_capacity_tons)} mono />
-            <Stat
-              label="Driver"
-              value={
-                t.driver ? (
+        <div className="space-y-4">
+          <Panel title="Truck and driver" bodyClassName="">
+            {t.driver && (
+              <div className="flex items-center gap-3 border-b border-line px-4 py-4 sm:px-5">
+                <Avatar name={t.driver.name} size={40} tone="brand" />
+                <div className="min-w-0 flex-1">
                   <Link
                     to={`/drivers/${t.driver.id}`}
-                    className="font-medium text-brand hover:underline"
+                    className="block truncate font-semibold text-ink hover:text-brand"
                   >
                     {t.driver.name}
                   </Link>
-                ) : (
-                  <span className="text-ink-dim">Unassigned</span>
-                )
-              }
-            />
-            {t.driver && (
-              <Stat
-                label="Phone"
-                value={
-                  <a
-                    href={`tel:${t.driver.phone.replace(/\s/g, '')}`}
-                    className="font-medium text-brand hover:underline"
-                  >
-                    {t.driver.phone}
-                  </a>
-                }
-              />
+                  <p className="truncate font-mono text-xs text-ink-dim">{t.driver.phone}</p>
+                </div>
+                <a
+                  href={`tel:${t.driver.phone.replace(/\s/g, '')}`}
+                  aria-label={`Call ${t.driver.name}`}
+                  className="grid size-10 place-items-center rounded-full bg-st-available/10 text-st-available transition-colors hover:bg-st-available/20"
+                >
+                  <IconPhone size={18} />
+                </a>
+              </div>
             )}
-            <Stat
-              label="Started"
-              value={t.started_at ? fmtDateTime(t.started_at) : 'Not started'}
+            <FactList
+              items={[
+                {
+                  label: 'Truck',
+                  value: (
+                    <Code to={`/trucks/${t.truck_id}`} className="text-brand">
+                      {t.truck_registration}
+                    </Code>
+                  ),
+                },
+                { label: 'Rated capacity', value: fmtTons(t.truck_capacity_tons) },
+                !t.driver && { label: 'Driver', value: 'Unassigned' },
+                { label: 'Started', value: t.started_at ? fmtDateTime(t.started_at) : 'Not started' },
+                t.completed_at ? { label: 'Completed', value: fmtDateTime(t.completed_at) } : null,
+              ]}
             />
-            {t.completed_at && (
-              <Stat label="Completed" value={fmtDateTime(t.completed_at)} />
-            )}
-          </div>
-        </Panel>
+          </Panel>
+
+          {editable && (
+            <div className="rounded-xl border border-dashed border-line-strong px-4 py-3.5 sm:px-5">
+              <p className="text-sm font-medium text-ink">Cancel this trip</p>
+              <p className="mt-0.5 text-sm text-ink-dim">
+                Orders not yet collected go back to the backlog.
+              </p>
+              <Button
+                size="sm"
+                variant="danger"
+                className="mt-3"
+                onClick={() => setConfirmCancel(true)}
+              >
+                Cancel trip
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
-      <Panel title="Orders on this trip" description={`${t.orders.length} total`} className="mt-4">
-        <Table
-          minWidth="58rem"
-          head={
-            <>
-              <Th>Order</Th>
-              <Th>Billing party</Th>
-              <Th align="right">Weight</Th>
-              <Th>Pickup</Th>
-              <Th>Drop</Th>
-              <Th align="right">Pickup date</Th>
-              <Th>Status</Th>
-            </>
+      <Panel
+        title="Orders on this trip"
+        description={`${t.orders.length} ${t.orders.length === 1 ? 'order' : 'orders'}`}
+        className="mt-4"
+        bodyClassName=""
+      >
+        <ResponsiveList
+          breakpoint="xl"
+          cards={
+            <ul className="divide-y divide-line">
+              {t.orders.map((order) => (
+                <ListCard key={order.id} to={`/orders/${order.id}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <Code to={`/orders/${order.id}`} className="font-semibold">
+                        {order.code}
+                      </Code>
+                      <p className="mt-0.5 truncate text-sm text-ink">
+                        {order.material}
+                        <span className="text-ink-dim"> · {fmtTons(order.quantity_tons)}</span>
+                      </p>
+                    </div>
+                    <OrderStatusBadge status={order.status} size="sm" />
+                  </div>
+                  <div className="mt-2.5">
+                    <Route from={order.pickup_name} to={order.drop_name} />
+                  </div>
+                  <p className="mt-2 truncate text-xs text-ink-dim">{order.billing_party}</p>
+                </ListCard>
+              ))}
+            </ul>
           }
-        >
-          {t.orders.map((order) => (
-            <Tr key={order.id} to={`/orders/${order.id}`}>
-              <Td>
-                <Link
-                  to={`/orders/${order.id}`}
-                  className="font-mono text-sm font-medium text-ink hover:text-brand"
-                >
-                  {order.code}
-                </Link>
-                <div className="truncate text-xs text-ink-dim">{order.material}</div>
-              </Td>
-              <Td className="max-w-40">
-                <span className="block truncate">{order.billing_party}</span>
-              </Td>
-              <Td align="right" className="font-medium tabular-nums">
-                {fmtTons(order.quantity_tons)}
-              </Td>
-              <Td className="text-ink-soft">{order.pickup_name}</Td>
-              <Td className="text-ink-soft">{order.drop_name}</Td>
-              <Td align="right">
-                {fmtDayRelative(order.pickup_date)}
-                <div className="text-xs text-ink-dim">{fmtDay(order.pickup_date)}</div>
-              </Td>
-              <Td>
-                <OrderStatusBadge status={order.status} size="sm" />
-              </Td>
-            </Tr>
-          ))}
-        </Table>
+          table={
+            <Table
+              minWidth="56rem"
+              head={
+                <>
+                  <Th>Order</Th>
+                  <Th>Billing party</Th>
+                  <Th>Route</Th>
+                  <Th align="right">Weight</Th>
+                  <Th>Pickup</Th>
+                  <Th>Status</Th>
+                </>
+              }
+            >
+              {t.orders.map((order) => (
+                <Tr key={order.id} to={`/orders/${order.id}`}>
+                  <Td>
+                    <Code to={`/orders/${order.id}`} className="font-semibold">
+                      {order.code}
+                    </Code>
+                    <div className="mt-0.5 truncate text-xs text-ink-dim">{order.material}</div>
+                  </Td>
+                  <Td className="max-w-44">
+                    <span className="block truncate">{order.billing_party}</span>
+                  </Td>
+                  <Td className="max-w-64">
+                    <Route from={order.pickup_name} to={order.drop_name} />
+                  </Td>
+                  <Td align="right" className="font-semibold tabular-nums">
+                    {fmtTons(order.quantity_tons)}
+                  </Td>
+                  <Td className="whitespace-nowrap">
+                    <PickupWhen date={order.pickup_date} />
+                    <div className="mt-0.5 text-xs text-ink-dim">{fmtDay(order.pickup_date)}</div>
+                  </Td>
+                  <Td>
+                    <OrderStatusBadge status={order.status} size="sm" />
+                  </Td>
+                </Tr>
+              ))}
+            </Table>
+          }
+        />
       </Panel>
-    </div>
+
+      {/* On a phone the save controls ride with the thumb, not at the top of a long list. */}
+      {pendingReorder && (
+        <StickyActionBar>
+          {problem && <p className="mb-2 text-xs font-medium text-st-delayed">{problem}</p>}
+          <div className="flex gap-2">
+            <Button className="flex-1" onClick={() => setDraft(null)}>
+              Reset
+            </Button>
+            <Button
+              variant="primary"
+              className="flex-[2]"
+              onClick={() => reorder.mutate(stops)}
+              disabled={reorder.isPending || problem !== null}
+            >
+              {reorder.isPending ? 'Saving…' : 'Save stop order'}
+            </Button>
+          </div>
+        </StickyActionBar>
+      )}
+
+      <Modal
+        open={confirmCancel}
+        onClose={() => setConfirmCancel(false)}
+        title={`Cancel ${t.code}?`}
+        description="The truck is released. Orders that have not been collected return to the backlog to be assigned again."
+        width="max-w-md"
+        footer={
+          <>
+            <Button onClick={() => setConfirmCancel(false)}>Keep trip</Button>
+            <Button
+              variant="danger"
+              onClick={() => cancel.mutate()}
+              disabled={cancel.isPending}
+            >
+              {cancel.isPending ? 'Cancelling…' : 'Cancel trip'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-ink-soft">
+          {t.stops_completed > 0
+            ? `${t.stops_completed} of ${stops.length} stops are already done and stay on record.`
+            : 'No stops have been completed yet.'}
+        </p>
+      </Modal>
+    </PageBody>
   )
 }

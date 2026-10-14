@@ -14,6 +14,7 @@ import {
   placeIsComplete,
   type PlaceValue,
 } from '../../components/placePicker'
+import { IconBuilding, IconCheck, IconPlus } from '../../components/icons'
 import { useToast } from '../../components/toast'
 import {
   Button,
@@ -51,15 +52,29 @@ function Steps({ current }: { current: number }) {
           {Math.round(((current + 1) / STEPS.length) * 100)}%
         </p>
       </div>
-      <div className="mt-2 flex gap-1.5">
+      <div className="mt-2.5 flex gap-1.5">
         {STEPS.map((step, index) => (
-          <span
-            key={step.key}
-            className={clsx(
-              'h-1.5 flex-1 rounded-full transition-colors',
-              index <= current ? 'bg-brand' : 'bg-surface-3',
-            )}
-          />
+          <span key={step.key} className="flex-1">
+            <span
+              className={clsx(
+                'block h-1.5 rounded-full transition-colors duration-300',
+                index <= current ? 'bg-brand' : 'bg-surface-3',
+              )}
+            />
+            {/* Named steps on a desk, where there is room to say where you are going. */}
+            <span
+              className={clsx(
+                'mt-2 hidden text-xs sm:block',
+                index === current
+                  ? 'font-semibold text-ink'
+                  : index < current
+                    ? 'text-ink-soft'
+                    : 'text-ink-dim',
+              )}
+            >
+              {step.label}
+            </span>
+          </span>
         ))}
       </div>
     </div>
@@ -76,8 +91,8 @@ function StepCard({
   children: React.ReactNode
 }) {
   return (
-    <section className="card p-5">
-      <h2 className="text-lg font-semibold text-ink">{question}</h2>
+    <section className="card animate-fade-up p-5 sm:p-7">
+      <h2 className="text-lg font-semibold text-ink sm:text-xl">{question}</h2>
       {help && <p className="mt-1 text-sm text-ink-soft">{help}</p>}
       <div className="mt-5">{children}</div>
     </section>
@@ -133,10 +148,12 @@ function CompanyStep({
         <>
           {/* Above the list: nobody scrolls past their companies to find it. */}
           <button
+            type="button"
             onClick={() => setAdding(true)}
-            className="h-11 w-full rounded-md border border-dashed border-line-strong text-sm font-semibold text-brand transition-colors hover:bg-surface-2"
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong text-sm font-semibold text-brand transition-colors hover:border-brand/50 hover:bg-brand-tint"
           >
-            + Add another company
+            <IconPlus size={16} />
+            Add another company
           </button>
           <ul className="space-y-2">
             {companies.map((company) => {
@@ -144,30 +161,37 @@ function CompanyStep({
               return (
                 <li key={company.id}>
                   <button
+                    type="button"
                     onClick={() => onChange(String(company.id))}
                     aria-pressed={active}
                     className={clsx(
-                      'w-full rounded-lg border p-4 text-left transition-colors',
+                      'flex w-full items-center gap-3.5 rounded-xl border p-4 text-left transition-[border-color,background-color,box-shadow]',
                       active
-                        ? 'border-brand bg-brand-tint ring-2 ring-brand/20'
-                        : 'border-line bg-surface-1 hover:bg-surface-2',
+                        ? 'border-brand/50 bg-brand-tint ring-2 ring-brand/15'
+                        : 'border-line bg-surface-1 hover:border-line-strong hover:bg-surface-2/60',
                     )}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="text-base font-semibold text-ink">
+                    <span
+                      className={clsx(
+                        'grid size-5 shrink-0 place-items-center rounded-full border transition-colors',
+                        active
+                          ? 'border-brand bg-brand text-on-brand'
+                          : 'border-line-strong bg-surface-1',
+                      )}
+                    >
+                      {active && <IconCheck size={12} strokeWidth={2.4} />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-base font-semibold text-ink">
                         {company.name}
                       </span>
-                      {active && (
-                        <span className="shrink-0 text-sm font-semibold text-brand">
-                          Selected
+                      {company.gst_number && (
+                        <span className="mt-0.5 block font-mono text-xs text-ink-dim">
+                          {company.gst_number}
                         </span>
                       )}
-                    </div>
-                    {company.gst_number && (
-                      <p className="mt-0.5 font-mono text-xs text-ink-dim">
-                        {company.gst_number}
-                      </p>
-                    )}
+                    </span>
+                    <IconBuilding size={18} className="shrink-0 text-ink-dim" />
                   </button>
                 </li>
               )
@@ -329,7 +353,7 @@ export default function PortalNewOrder() {
   }
 
   return (
-    <>
+    <div className="mx-auto max-w-2xl">
       <PortalPageTitle
         title="Place an order"
         subtitle="Five short steps. We will keep what you type for next time."
@@ -552,6 +576,6 @@ export default function PortalNewOrder() {
           </p>
         )}
       </div>
-    </>
+    </div>
   )
 }

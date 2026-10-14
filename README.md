@@ -1,4 +1,4 @@
-# FleetOps — Truck Fleet & Transport Order Management
+# Ekta — Truck Fleet & Transport Order Management
 
 Three applications on one backend, one for each person in the chain:
 
@@ -231,6 +231,44 @@ statuses, plus the allocated truck, the driver's name and a one-tap call
 button, and its own two legs ticking off as the driver completes them. An
 order can be withdrawn while it is still waiting for a truck; after that the
 portal tells them to call the control room.
+
+---
+
+## Customers
+
+A customer is one account, identified by a mobile number. It doesn't matter
+who creates it. A billing party can sign up in the portal themselves, or the
+control room can add them while on the phone: typing a number in the
+new-order form either finds the existing customer or creates one, with the
+company the order is billed to. When that customer later signs in to the
+portal with the same number, it is the same account, and everything is
+already there.
+
+**What links it all is one rule** (`services/customers.py::orders_of`): an
+order belongs to a customer when it is billed to one of their companies, or
+when they placed it themselves. Who typed it in does not matter, so an order
+the control room raises for a company appears in that customer's portal,
+marked "Booked by our team". The portal, the control room's customer page and
+the order filters all use the same rule.
+
+| Customer's data | Created by | Seen by |
+| --- | --- | --- |
+| Account (number, name) | Portal sign-up, or control room | Both |
+| Companies | Customer in the portal, or control room | Both |
+| Orders | Customer, or control room for one of their companies | Both |
+| Saved addresses | Saved automatically to the customer's book when one of their orders uses them | Both |
+
+In the control room, **Customers** lists every account with its companies,
+order counts and whether they have used the portal yet. Each customer's page
+shows their orders, their companies (which can be added or corrected) and
+their address book, and has a **New order** button that opens the form with
+the customer already chosen. Every order shows who its customer is, with a
+link to their page, and ⌘K search finds a customer by name, number or company.
+
+The demo data follows the same rule: every seeded order is billed to one of
+18 customers. Nitin Agrawal (9876543210) uses the portal; the other 17 were
+added by the control room and have never signed in. Sign in as any of them,
+for example 9825000001, and their orders are already waiting.
 
 ---
 
@@ -515,10 +553,31 @@ mark a truck available while it is on an active trip.
 
 ---
 
+## Design
+
+The interface follows one design system, written down in
+[`frontend/DESIGN.md`](frontend/DESIGN.md): what the audit found, the
+direction (a navy "night" brand surface, one indigo signal colour for actions,
+status hues reserved for freight state), the tokens in `src/index.css`, and
+the patterns every screen uses.
+
+Every screen works from a 360px phone to a wide desk monitor. Below `lg` the
+control room swaps its sidebar for a bottom tab bar; lists turn into cards
+before they would scroll sideways; dialogs rise as bottom sheets; and primary
+actions sit in reach of the thumb.
+
+**Assigning on a touchscreen.** HTML5 drag events never fire from touch, so
+assignment is built on taps, with drag kept as a desk shortcut. Select orders,
+and every truck says at once whether the selection fits; tap one and a load
+plan opens (a side drawer on a desk, a bottom sheet on a phone) with the
+capacity arithmetic, the stops in order, and the button that commits.
+
+---
+
 ## Tests
 
 ```bash
-cd backend && .venv/bin/python -m pytest tests -q     # 113 tests
+cd backend && .venv/bin/python -m pytest tests -q     # 123 tests
 ```
 
 Coverage focuses on the rules that must not break: the capacity invariant
@@ -606,8 +665,9 @@ frontend/src/
   lib/       api client, types, auth, live socket, formatters, status
              palette, stage mapping, sequence validator, link helpers,
              paging (Page type) and usePaged (one paged list's state)
-  components/ui, shell, portalShell, driverShell, truckTable, toast,
-             alertItem, sortable, placePicker
+  components/ui (primitives), icons, brand (logo), shell, portalShell,
+             driverShell, authLayout, otpSignIn, truckTable, tripList,
+             orderBits, toast, alertItem, sortable, placePicker
   pages/     Dashboard, Assign, Orders, OrderDetail, Trips, TripDetail,
              Trucks, TruckDetail, Drivers, DriverDetail, Places, Alerts
   pages/portal/  Login, Orders, NewOrder (the step-by-step flow),

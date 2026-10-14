@@ -4,12 +4,14 @@ import { ApiError, api } from '../lib/api'
 import { usePaged } from '../lib/usePaged'
 import { fmtAgo } from '../lib/format'
 import type { SavedPlace } from '../lib/types'
-import { MetaItem, PageHeader } from '../components/shell'
+import { IconPin, IconPlus } from '../components/icons'
+import { MetaItem, PageBody, PageHeader } from '../components/shell'
 import { useToast } from '../components/toast'
 import {
   Button,
   CellStack,
   Callout,
+  ChipBar,
   EmptyState,
   Field,
   FilterChip,
@@ -171,18 +173,19 @@ export default function Places() {
   const total = list.page.total
 
   return (
-    <div className="p-6">
+    <PageBody>
       <PageHeader
-        title="Saved addresses"
+        title="Addresses"
         subtitle="Pickup and delivery points, offered on every order form."
         meta={
           <>
-            <MetaItem label="Total">{total.toLocaleString()} addresses</MetaItem>
+            <MetaItem label="Matching">{total.toLocaleString('en-IN')}</MetaItem>
             <MetaItem label="Control room's own">{ownCount.data ?? '—'}</MetaItem>
           </>
         }
         actions={
           <Button variant="primary" onClick={() => setAdding(true)}>
+            <IconPlus size={17} />
             Add address
           </Button>
         }
@@ -196,14 +199,14 @@ export default function Places() {
       </div>
 
       <Panel bodyClassName="overflow-visible">
-        <div className="space-y-3 border-b border-line p-4">
+        <div className="space-y-3 border-b border-line p-4 sm:px-5">
           <SearchInput
             value={search}
             onChange={setSearch}
-            placeholder="Search name, address or customer"
-            className="max-w-md"
+            placeholder="Search name, address or phone"
+            className="lg:max-w-md"
           />
-          <div className="flex flex-wrap items-center gap-1.5">
+          <ChipBar>
             <FilterChip active={!mineOnly} onClick={() => setMineOnly(false)}>
               Everyone
             </FilterChip>
@@ -214,16 +217,14 @@ export default function Places() {
             >
               {CONTROL_ROOM}'s own
             </FilterChip>
-            <span className="ml-auto text-sm tabular-nums text-ink-dim">
-              {total.toLocaleString()} matching
-            </span>
-          </div>
+          </ChipBar>
         </div>
 
         {list.isInitialLoading ? (
           <Spinner label="Loading addresses" />
         ) : rows.length === 0 ? (
           <EmptyState
+            icon={<IconPin size={20} />}
             title={search || mineOnly ? 'No addresses match' : 'Nothing saved yet'}
             hint={
               search || mineOnly
@@ -233,25 +234,31 @@ export default function Places() {
           />
         ) : (
           <ResponsiveList
+      breakpoint="xl"
             cards={
               <ul className="divide-y divide-line">
                 {rows.map((place) => {
                   const isMine = (place.owner ?? CONTROL_ROOM) === CONTROL_ROOM
                   return (
                     <li key={place.id} className="px-4 py-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm font-semibold text-ink">{place.label}</p>
-                        <Pill>{place.owner ?? CONTROL_ROOM}</Pill>
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-surface-2 text-ink-soft">
+                          <IconPin size={17} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-ink">{place.label}</p>
+                          <p className="mt-0.5 text-sm leading-relaxed text-ink-soft">
+                            {place.address}
+                          </p>
+                          <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-dim">
+                            {place.phone && <span className="font-mono">{place.phone}</span>}
+                            <span>Used {place.use_count}×</span>
+                            <Pill>{place.owner ?? CONTROL_ROOM}</Pill>
+                          </p>
+                        </div>
                       </div>
-                      <p className="mt-1 text-sm text-ink-soft">{place.address}</p>
-                      {place.phone && (
-                        <p className="mt-0.5 text-xs text-ink-dim">{place.phone}</p>
-                      )}
-                      <p className="mt-1 text-xs text-ink-dim">
-                        Used {place.use_count}×
-                      </p>
                       {isMine && (
-                        <div className="mt-3 flex gap-2">
+                        <div className="mt-3 flex gap-2 pl-12">
                           <Button size="sm" onClick={() => setEditing(place)}>
                             Edit
                           </Button>
@@ -298,7 +305,7 @@ export default function Places() {
                         {place.phone ? (
                           <a
                             href={`tel:${place.phone.replace(/\s/g, '')}`}
-                            className="text-ink hover:text-brand"
+                            className="font-mono text-[0.8125rem] text-ink hover:text-brand"
                           >
                             {place.phone}
                           </a>
@@ -360,6 +367,6 @@ export default function Places() {
 
       {adding && <PlaceForm open={adding} onClose={() => setAdding(false)} />}
       {editing && <PlaceForm open onClose={() => setEditing(null)} place={editing} />}
-    </div>
+    </PageBody>
   )
 }

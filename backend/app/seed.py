@@ -89,6 +89,34 @@ BILLING_PARTIES = [
     "Arya Auto Components",
 ]
 
+# The person at each billing party who books trucks. Index-aligned with
+# BILLING_PARTIES. Deterministic, and drawn without the RNG so adding them
+# does not shift any other generated value.
+PARTY_CONTACTS = [
+    "Nitin Agrawal",
+    "Hemant Sutaria",
+    "Kirti Bhavsar",
+    "Rupal Kothari",
+    "Dhaval Vora",
+    "Nirav Sanghvi",
+    "Jayesh Modi",
+    "Kunal Parikh",
+    "Ketan Patel",
+    "Mehul Doshi",
+    "Pankaj Jhaveri",
+    "Sejal Thakkar",
+    "Hardik Kansara",
+    "Rahul Mistry",
+    "Bhavin Gandhi",
+    "Darshan Amin",
+    "Falguni Dalal",
+    "Tejas Kapadia",
+]
+
+#: Filled by ``seed`` once the customers exist; index-aligned with
+#: BILLING_PARTIES so picking one draws from the RNG exactly as before.
+_ORDER_COMPANIES: List["Company"] = []
+
 MATERIALS = [
     ("Steel Rods", 6, 24),
     ("Cement Bags", 8, 28),
@@ -249,7 +277,12 @@ def _make_order(
         order_number=(
             f"PO-{RNG.randint(10000, 99999)}" if RNG.random() < 0.55 else None
         ),
-        billing_party=RNG.choice(BILLING_PARTIES),
+        # Every order is billed to a customer's company, so each one shows up
+        # in that customer's portal -- exactly as a control-room order does
+        # live. Drawn here, in the same position the old billing-party pick
+        # used, so the rest of the generated data is unchanged.
+        company=RNG.choice(_ORDER_COMPANIES),
+        billing_party="",
         material=material,
         quantity_tons=tons,
         pickup_name=pickup.name,
@@ -263,6 +296,7 @@ def _make_order(
         status=OrderStatus.UNASSIGNED.value,
         created_at=now - timedelta(hours=RNG.randint(1, 50)),
     )
+    order.billing_party = order.company.name
     db.add(order)
     return order
 
@@ -294,6 +328,51 @@ def seed(db: Session) -> None:
         )
     )
     db.flush()
+
+    # --- customers ---------------------------------------------------------- #
+    # One account per billing party. Nitin signs in to the portal himself and
+    # runs two companies; the others were added by the control room over the
+    # phone and have never signed in -- when they do, with that number, they
+    # find every order already raised for them.
+    account = PartyAccount(phone="9876543210", full_name="Nitin Agrawal")
+    db.add(account)
+    db.flush()
+    portal_companies = [
+        Company(
+            account_id=account.id,
+            name="ABC Industries",
+            gst_number="24AAACA1234A1Z5",
+            contact_person="Nitin Agrawal",
+            address="Block C, Naroda GIDC, Ahmedabad - 382330",
+        ),
+        Company(
+            account_id=account.id,
+            name="ABC Steel Trading",
+            gst_number="24AAACA9876B1Z2",
+            contact_person="Rohan Agrawal",
+            address="Shed 14, Odhav Ring Road, Ahmedabad - 382415",
+        ),
+    ]
+    db.add_all(portal_companies)
+    db.flush()
+
+    _ORDER_COMPANIES.clear()
+    for index, (party, contact) in enumerate(zip(BILLING_PARTIES, PARTY_CONTACTS)):
+        if party == "ABC Industries":
+            _ORDER_COMPANIES.append(portal_companies[0])
+            continue
+        customer = PartyAccount(phone=f"98250{index:05d}", full_name=contact)
+        db.add(customer)
+        db.flush()
+        company = Company(
+            account_id=customer.id,
+            name=party,
+            gst_number=f"24AAB{'CDEFGHJKLMNPQRSTU'[index % 17]}{1000 + index * 37}Z{index % 9 + 1}",
+            contact_person=contact,
+        )
+        db.add(company)
+        db.flush()
+        _ORDER_COMPANIES.append(company)
 
     seq = 0
 
@@ -380,29 +459,6 @@ def seed(db: Session) -> None:
         if truck.driver:
             truck.driver.status = DriverStatus.RESTING.value
 
-    # --- a demo billing party with its own portal login -------------------- #
-    account = PartyAccount(phone="9876543210", full_name="Nitin Agrawal")
-    db.add(account)
-    db.flush()
-    portal_companies = [
-        Company(
-            account_id=account.id,
-            name="ABC Industries",
-            gst_number="24AAACA1234A1Z5",
-            contact_person="Nitin Agrawal",
-            address="Block C, Naroda GIDC, Ahmedabad - 382330",
-        ),
-        Company(
-            account_id=account.id,
-            name="ABC Steel Trading",
-            gst_number="24AAACA9876B1Z2",
-            contact_person="Rohan Agrawal",
-            address="Shed 14, Odhav Ring Road, Ahmedabad - 382415",
-        ),
-    ]
-    db.add_all(portal_companies)
-    db.flush()
-
     # Orders this party placed itself. A few are then dispatched so the portal
     # demonstrates every stage it can show, not just "awaiting truck".
     portal_orders = []
@@ -410,7 +466,7 @@ def seed(db: Session) -> None:
         seq += 1
         order = _make_order(db, seq, places, max_tons=18, day_offset=index - 2)
         order.source = OrderSource.PORTAL.value
-        order.company_id = company.id
+        order.company = company
         order.placed_by_account_id = account.id
         order.billing_party = company.name
         portal_orders.append(order)
@@ -478,10 +534,10 @@ def seed(db: Session) -> None:
             trip_service.complete_stop(db, trip, stop)
         db.commit()
 
-    # Fill both address books from the orders just created, the same way a
-    # real order does -- the control room's own, and the demo party's.
+    # Fill the address books from the orders just created, the same way a
+    # real order does: each address goes to the customer whose order used it.
     for order in db.scalars(select(TransportOrder)):
-        owner = order.placed_by_account_id
+        owner = order.company.account_id if order.company else order.placed_by_account_id
         place_service.remember(
             db, order.pickup_name, order.pickup_phone, order.pickup_address, owner
         )

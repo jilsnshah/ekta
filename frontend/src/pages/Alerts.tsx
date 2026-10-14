@@ -4,10 +4,13 @@ import { api, ApiError } from '../lib/api'
 import { usePaged } from '../lib/usePaged'
 import { SEVERITY, SEVERITY_ORDER } from '../lib/status'
 import { AlertItem } from '../components/alertItem'
-import { MetaItem, PageHeader } from '../components/shell'
+import { IconBell, IconCheck } from '../components/icons'
+import { MetaItem, PageBody, PageHeader } from '../components/shell'
 import { useToast } from '../components/toast'
 import {
   Button,
+  ChipBar,
+  ChipDivider,
   EmptyState,
   FilterChip,
   Pagination,
@@ -58,30 +61,31 @@ export default function Alerts() {
   const hasOpen = alerts.some((a) => !a.acknowledged)
 
   return (
-    <div className="p-6">
+    <PageBody>
       <PageHeader
         title="Alerts"
         subtitle="Conditions the system has flagged for review."
-        meta={<MetaItem label="Total">{list.page.total}</MetaItem>}
+        meta={<MetaItem label="Matching">{list.page.total.toLocaleString('en-IN')}</MetaItem>}
         actions={
           <Button
             onClick={() => acknowledgeAll.mutate()}
             disabled={acknowledgeAll.isPending || !hasOpen}
           >
+            <IconCheck size={16} />
             {acknowledgeAll.isPending ? 'Clearing…' : 'Acknowledge all'}
           </Button>
         }
       />
 
       <Panel bodyClassName="overflow-visible">
-        <div className="space-y-3 border-b border-line p-4">
+        <div className="space-y-3 border-b border-line p-4 sm:px-5">
           <SearchInput
             value={search}
             onChange={setSearch}
             placeholder="Search alert text"
-            className="max-w-md"
+            className="lg:max-w-md"
           />
-          <div className="flex flex-wrap items-center gap-1.5">
+          <ChipBar>
             <FilterChip active={!severity} onClick={() => setSeverity(null)}>
               All severities
             </FilterChip>
@@ -98,20 +102,21 @@ export default function Alerts() {
                 </FilterChip>
               )
             })}
-            <span className="mx-1 h-5 w-px bg-line" aria-hidden />
+            <ChipDivider />
             <FilterChip
               active={showAcknowledged}
               onClick={() => setShowAcknowledged((v) => !v)}
             >
               Include acknowledged
             </FilterChip>
-          </div>
+          </ChipBar>
         </div>
 
         {list.isInitialLoading ? (
           <Spinner label="Loading alerts" />
         ) : alerts.length === 0 ? (
           <EmptyState
+            icon={<IconBell size={20} />}
             title="Nothing needs attention"
             hint="No alerts match this filter."
           />
@@ -140,6 +145,6 @@ export default function Alerts() {
           </>
         )}
       </Panel>
-    </div>
+    </PageBody>
   )
 }

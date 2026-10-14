@@ -3,13 +3,13 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { usePaged } from '../../lib/usePaged'
-import { fmtDay, fmtDayRelative, fmtTons } from '../../lib/format'
+import { fmtDay, fmtTons } from '../../lib/format'
 import { STAGE_META } from '../../lib/stage'
 import type { OrderStage } from '../../lib/types'
 import { Link as RouterLink } from 'react-router-dom'
+import { PickupWhen, Route } from '../../components/orderBits'
 import { PortalPageHeader, StageBadge } from '../../components/portalShell'
 import {
-  CellStack,
   EmptyState,
   FilterChip,
   KpiTile,
@@ -123,7 +123,9 @@ export default function PortalOrders() {
         subtitle="Every order you have placed, and where it has got to."
         actions={
           <>
-            <LinkButton to="/portal/companies">My companies</LinkButton>
+            <LinkButton to="/portal/companies" className="max-sm:hidden">
+              My companies
+            </LinkButton>
             <LinkButton to="/portal/new" variant="primary">
               Place an order
             </LinkButton>
@@ -204,6 +206,7 @@ export default function PortalOrders() {
           />
         ) : (
           <ResponsiveList
+            breakpoint="xl"
             cards={
               <ul className="divide-y divide-line">
                 {rows.map((order) => (
@@ -228,14 +231,16 @@ export default function PortalOrders() {
                         <StageBadge stage={order.stage} size="sm" />
                       </div>
 
-                      <p className="mt-2 truncate text-sm text-ink-soft">
-                        {order.pickup_name} <span className="text-ink-dim">→</span>{' '}
-                        {order.drop_name}
-                      </p>
+                      <div className="mt-2.5">
+                        <Route from={order.pickup_name} to={order.drop_name} />
+                      </div>
 
-                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-dim">
+                      <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-dim">
                         <span className="truncate">{order.company_name}</span>
-                        <span>Pickup {fmtDayRelative(order.pickup_date)}</span>
+                        {order.booked_by_us && <span>Booked by our team</span>}
+                        <span>
+                          Pickup <PickupWhen date={order.pickup_date} className="text-xs" />
+                        </span>
                         {order.truck_registration && (
                           <span className="font-mono">{order.truck_registration}</span>
                         )}
@@ -252,10 +257,9 @@ export default function PortalOrders() {
                   <>
                     <Th>Order</Th>
                     <Th>Billed to</Th>
+                    <Th>Route</Th>
                     <Th align="right">Weight</Th>
                     <Th>Pickup</Th>
-                    <Th>Drop</Th>
-                    <Th align="right">Pickup date</Th>
                     <Th>Progress</Th>
                     <Th>Truck</Th>
                   </>
@@ -278,25 +282,22 @@ export default function PortalOrders() {
                     <Td className="max-w-44">
                       <span className="block truncate">{order.company_name}</span>
                     </Td>
-                    <Td align="right" className="font-medium tabular-nums">
+                    <Td className="max-w-52">
+                      <Route from={order.pickup_name} to={order.drop_name} />
+                    </Td>
+                    <Td align="right" className="font-semibold tabular-nums">
                       {fmtTons(order.quantity_tons)}
                     </Td>
-                    <Td className="max-w-44">
-                      <CellStack primary={order.pickup_name} />
-                    </Td>
-                    <Td className="max-w-44">
-                      <CellStack primary={order.drop_name} />
-                    </Td>
-                    <Td align="right">
-                      {fmtDayRelative(order.pickup_date)}
-                      <div className="text-xs text-ink-dim">{fmtDay(order.pickup_date)}</div>
+                    <Td className="whitespace-nowrap">
+                      <PickupWhen date={order.pickup_date} />
+                      <div className="mt-0.5 text-xs text-ink-dim">{fmtDay(order.pickup_date)}</div>
                     </Td>
                     <Td>
                       <StageBadge stage={order.stage} size="sm" />
                     </Td>
                     <Td>
                       {order.truck_registration ? (
-                        <span className="font-mono text-sm">
+                        <span className="font-mono text-[0.8125rem] whitespace-nowrap">
                           {order.truck_registration}
                         </span>
                       ) : (

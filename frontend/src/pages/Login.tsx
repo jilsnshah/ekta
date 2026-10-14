@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { AuthHeading, AuthLayout } from '../components/authLayout'
+import { IconArrowRight } from '../components/icons'
 import { Button, Callout, Field, inputClass } from '../components/ui'
 
 const DEMO_LOGINS = [
@@ -32,33 +34,26 @@ export default function Login() {
   }
 
   return (
-    <div className="grid min-h-full place-items-center bg-surface-0 p-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-lg bg-brand text-base font-bold text-on-brand">
-            F
-          </span>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-ink">FleetOps</h1>
-            <p className="text-sm text-ink-dim">Transport order control</p>
-          </div>
-        </div>
+    <AuthLayout
+      caption="Control room"
+      headline="Every truck, every order, every stop — on one screen."
+      points={[
+        'Assign orders to trucks with the capacity checked for you',
+        'Plan and re-order stops, pickup always before delivery',
+        'Follow every trip as drivers close their stops',
+      ]}
+    >
+      <form onSubmit={submit} className="animate-fade-up">
+        <AuthHeading title="Sign in">Use your control room credentials.</AuthHeading>
 
-        <form onSubmit={submit} className="card space-y-4 p-6">
-          <div>
-            <h2 className="text-base font-semibold text-ink">Sign in</h2>
-            <p className="mt-0.5 text-sm text-ink-dim">
-              Use your control room credentials.
-            </p>
-          </div>
-
+        <div className="space-y-5">
           <Field label="Email">
             <input
               type="email"
               autoComplete="username"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className={inputClass}
+              className={`${inputClass} h-12 sm:h-11`}
               required
             />
           </Field>
@@ -69,49 +64,41 @@ export default function Login() {
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className={inputClass}
+              className={`${inputClass} h-12 sm:h-11`}
               required
             />
           </Field>
 
           {error && <Callout tone="danger">{error}</Callout>}
 
-          <Button type="submit" variant="primary" className="w-full" disabled={busy}>
+          <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy}>
             {busy ? 'Signing in…' : 'Sign in'}
+            {!busy && <IconArrowRight size={17} />}
           </Button>
-        </form>
+        </div>
+      </form>
 
-        <p className="mt-6 text-center text-sm text-ink-dim">
-          <Link to="/portal/login" className="font-medium text-brand hover:underline">
-            Customer portal
-          </Link>
-          {' · '}
-          <Link to="/driver/login" className="font-medium text-brand hover:underline">
-            Driver app
-          </Link>
-        </p>
-
-        <div className="mt-6">
-          <p className="label mb-2">Demo accounts</p>
-          <div className="card divide-y divide-line overflow-hidden">
-            {DEMO_LOGINS.map((account) => (
-              <button
-                key={account.email}
-                onClick={() => {
-                  setEmail(account.email)
-                  setPassword(account.password)
-                }}
-                className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-2"
-              >
-                <span className="text-sm font-medium text-ink">{account.role}</span>
-                <span className="font-mono text-xs text-ink-dim">
-                  {account.email} · {account.password}
-                </span>
-              </button>
-            ))}
-          </div>
+      <div className="mt-10">
+        <p className="mb-2.5 text-xs font-medium text-ink-dim">Demo accounts — tap to fill</p>
+        <div className="divide-y divide-line overflow-hidden rounded-xl ring-1 ring-line">
+          {DEMO_LOGINS.map((account) => (
+            <button
+              key={account.email}
+              type="button"
+              onClick={() => {
+                setEmail(account.email)
+                setPassword(account.password)
+              }}
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2"
+            >
+              <span className="text-sm font-medium text-ink">{account.role}</span>
+              <span className="truncate font-mono text-xs text-ink-dim">
+                {account.email} · {account.password}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
-    </div>
+    </AuthLayout>
   )
 }

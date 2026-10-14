@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { fmtTons } from '../lib/format'
@@ -22,11 +22,24 @@ import type {
   TripStatus,
   TruckStatus,
 } from '../lib/types'
+import {
+  IconAlert,
+  IconChevronLeft,
+  IconChevronRight,
+  IconClose,
+  IconInfo,
+  IconSearch,
+} from './icons'
 
 /* ========================================================================== *
- * Badges
+ * Status pills
  * ========================================================================== */
 
+/**
+ * Every status in the product is the same pill: a dot, a label, a soft tint
+ * of the status hue. No border -- the tint is enough, and borders on every
+ * pill made dense tables look caged.
+ */
 function Badge({
   meta,
   size = 'md',
@@ -39,8 +52,8 @@ function Badge({
   return (
     <span
       className={clsx(
-        'inline-flex shrink-0 items-center gap-1.5 rounded-md border font-medium whitespace-nowrap',
-        size === 'sm' ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-[3px] text-sm',
+        'inline-flex shrink-0 items-center gap-1.5 rounded-full font-medium whitespace-nowrap',
+        size === 'sm' ? 'h-[22px] px-2 text-xs' : 'h-6 px-2.5 text-[0.8125rem]',
         meta.chip,
       )}
     >
@@ -106,7 +119,7 @@ export function StopTypeBadge({ type }: { type: StopType }) {
   return (
     <span
       className={clsx(
-        'inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 text-xs font-semibold',
+        'inline-flex h-[22px] shrink-0 items-center rounded-full px-2 text-xs font-semibold',
         meta.chip,
       )}
     >
@@ -116,10 +129,48 @@ export function StopTypeBadge({ type }: { type: StopType }) {
 }
 
 /** Neutral count / metadata pill. No semantic colour. */
-export function Pill({ children }: { children: ReactNode }) {
+export function Pill({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <span className="inline-flex shrink-0 items-center rounded-md border border-line bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-ink-soft">
+    <span
+      className={clsx(
+        'inline-flex h-[22px] shrink-0 items-center rounded-full bg-surface-2 px-2 text-xs font-medium text-ink-soft ring-1 ring-line ring-inset',
+        className,
+      )}
+    >
       {children}
+    </span>
+  )
+}
+
+/** Initials in a circle, for people. */
+export function Avatar({
+  name,
+  size = 32,
+  tone = 'light',
+}: {
+  name?: string | null
+  size?: number
+  tone?: 'light' | 'dark' | 'brand'
+}) {
+  const initials = (name ?? '?')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+  return (
+    <span
+      style={{ width: size, height: size, fontSize: size * 0.38 }}
+      className={clsx(
+        'grid shrink-0 place-items-center rounded-full font-semibold tracking-tight',
+        tone === 'light' && 'bg-surface-3 text-ink-soft',
+        tone === 'dark' && 'bg-night-active text-on-night',
+        tone === 'brand' && 'bg-brand-tint text-brand',
+      )}
+      aria-hidden
+    >
+      {initials || '?'}
     </span>
   )
 }
@@ -129,18 +180,21 @@ export function Pill({ children }: { children: ReactNode }) {
  * ========================================================================== */
 
 /**
- * The load visual used wherever capacity matters. Reads as "14 / 20 T" with
+ * The load visual used wherever capacity matters. Reads as "14T / 20T" with
  * the free headroom beside it and a bar that warns as it fills.
  */
 export function CapacityBar({
   capacity,
   size = 'md',
   pendingTons = 0,
+  barOnly = false,
 }: {
   capacity: Capacity
   size?: 'sm' | 'md'
   /** Tons being staged for assignment, drawn as a hatched overlay. */
   pendingTons?: number
+  /** Just the bar, when the figures are already stated beside it. */
+  barOnly?: boolean
 }) {
   const total = capacity.capacity_tons || 1
   const usedPct = Math.min((capacity.current_load_tons / total) * 100, 100)
@@ -151,7 +205,7 @@ export function CapacityBar({
 
   return (
     <div className="w-full space-y-1.5">
-      <div className="flex items-baseline justify-between gap-3">
+      <div className={clsx('flex items-baseline justify-between gap-3', barOnly && 'hidden')}>
         <span
           className={clsx(
             'font-semibold tabular-nums',
@@ -173,7 +227,10 @@ export function CapacityBar({
         </span>
       </div>
       <div
-        className="relative h-1.5 overflow-hidden rounded-full bg-surface-3"
+        className={clsx(
+          'relative overflow-hidden rounded-full bg-surface-3',
+          size === 'sm' ? 'h-1.5' : 'h-2',
+        )}
         role="meter"
         aria-valuenow={Math.round(capacity.current_load_tons + pendingTons)}
         aria-valuemin={0}
@@ -181,17 +238,20 @@ export function CapacityBar({
         aria-label="Truck load"
       >
         <div
-          className={clsx('absolute inset-y-0 left-0 rounded-full transition-all', tone.bar)}
+          className={clsx(
+            'absolute inset-y-0 left-0 rounded-full transition-[width] duration-300',
+            tone.bar,
+          )}
           style={{ width: `${usedPct}%` }}
         />
         {pendingPct > 0 && (
           <div
-            className="absolute inset-y-0 rounded-full bg-brand"
+            className="absolute inset-y-0 rounded-r-full bg-brand transition-[width] duration-300"
             style={{
               left: `${usedPct}%`,
               width: `${pendingPct}%`,
               backgroundImage:
-                'repeating-linear-gradient(45deg, rgb(255 255 255 / 0.45) 0 3px, transparent 3px 6px)',
+                'repeating-linear-gradient(45deg, rgb(255 255 255 / 0.4) 0 3px, transparent 3px 6px)',
             }}
           />
         )}
@@ -211,7 +271,7 @@ export function ProgressBar({
 }) {
   const bar = tone === 'success' ? 'bg-st-available' : 'bg-brand'
   return (
-    <div className="w-full space-y-1">
+    <div className="w-full space-y-1.5">
       {label && (
         <div className="flex justify-between text-xs">
           <span className="text-ink-dim">{label}</span>
@@ -222,7 +282,7 @@ export function ProgressBar({
       )}
       <div className="h-1.5 overflow-hidden rounded-full bg-surface-3">
         <div
-          className={clsx('h-full rounded-full transition-all duration-300', bar)}
+          className={clsx('h-full rounded-full transition-[width] duration-500', bar)}
           style={{ width: `${Math.min(Math.max(percent, 0), 100)}%` }}
         />
       </div>
@@ -236,7 +296,8 @@ export function ProgressBar({
 
 /**
  * A headline figure. `tone` colours only the number, so a row of tiles stays
- * calm and the one that needs attention stands out.
+ * calm and the one that needs attention stands out; `icon` gives the tile a
+ * glyph that tells the figures apart at a glance.
  */
 export function KpiTile({
   label,
@@ -246,6 +307,7 @@ export function KpiTile({
   to,
   onClick,
   active = false,
+  icon,
 }: {
   label: string
   value: ReactNode
@@ -253,23 +315,41 @@ export function KpiTile({
   tone?: string
   /** Navigate to a page. Use for figures whose detail lives elsewhere. */
   to?: string
-  /** Filter in place. Use for figures the table below can narrow to. */
+  /** Filter in place. Use for figures the list below can narrow to. */
   onClick?: () => void
   active?: boolean
+  icon?: ReactNode
 }) {
   const body = (
     <>
-      <span className="label">{label}</span>
-      <span className={clsx('text-2xl font-semibold tabular-nums', tone ?? 'text-ink')}>
+      <span className="flex items-center justify-between gap-2">
+        <span className="truncate text-[0.8125rem] font-medium text-ink-soft">{label}</span>
+        {icon && (
+          <span
+            className={clsx(
+              'grid size-7 shrink-0 place-items-center rounded-lg transition-colors',
+              active ? 'bg-brand text-on-brand' : 'bg-surface-2 text-ink-dim',
+            )}
+          >
+            {icon}
+          </span>
+        )}
+      </span>
+      <span
+        className={clsx(
+          'mt-2 block text-2xl font-semibold tabular-nums',
+          tone ?? 'text-ink',
+        )}
+      >
         {value}
       </span>
-      {sub && <span className="text-xs text-ink-dim">{sub}</span>}
+      {sub && <span className="mt-0.5 block truncate text-xs text-ink-dim">{sub}</span>}
     </>
   )
 
   const shell =
-    'card flex flex-col gap-1 px-4 py-3.5 text-left transition-colors'
-  const hover = 'cursor-pointer hover:border-line-strong hover:bg-surface-2/60'
+    'card group block min-w-0 px-4 py-3.5 text-left transition-[border-color,box-shadow,background-color] duration-150'
+  const hover = 'cursor-pointer hover:border-line-strong hover:shadow-raised'
 
   if (to) {
     return (
@@ -287,7 +367,7 @@ export function KpiTile({
         className={clsx(
           shell,
           hover,
-          active && 'border-brand bg-brand-tint hover:bg-brand-tint',
+          active && 'border-brand/40 bg-brand-tint ring-1 ring-brand/30 hover:border-brand/40',
         )}
       >
         {body}
@@ -305,6 +385,7 @@ export function Panel({
   children,
   className,
   bodyClassName,
+  icon,
 }: {
   title?: ReactNode
   description?: ReactNode
@@ -312,21 +393,33 @@ export function Panel({
   children: ReactNode
   className?: string
   bodyClassName?: string
+  icon?: ReactNode
 }) {
   return (
     <section className={clsx('card flex min-h-0 flex-col overflow-hidden', className)}>
       {(title || actions) && (
-        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-line px-4 py-3">
-          <div className="min-w-0">
-            <h2 className="truncate text-base font-semibold text-ink">{title}</h2>
-            {description && (
-              <p className="mt-0.5 truncate text-xs text-ink-dim">{description}</p>
-            )}
+        <header className="flex shrink-0 items-center justify-between gap-4 px-4 pt-3.5 pb-3 sm:px-5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            {icon && <span className="text-ink-dim">{icon}</span>}
+            <div className="min-w-0">
+              <h2 className="truncate text-[0.9375rem] font-semibold text-ink">{title}</h2>
+              {description && (
+                <p className="mt-0.5 truncate text-xs text-ink-dim">{description}</p>
+              )}
+            </div>
           </div>
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className={clsx('min-h-0 flex-1', bodyClassName ?? 'overflow-auto')}>{children}</div>
+      <div
+        className={clsx(
+          'min-h-0 flex-1',
+          (title || actions) && 'border-t border-line',
+          bodyClassName ?? 'overflow-auto',
+        )}
+      >
+        {children}
+      </div>
     </section>
   )
 }
@@ -344,15 +437,43 @@ export function Stat({
   return (
     <div className="min-w-0">
       <div className="label">{label}</div>
-      <div
-        className={clsx(
-          'mt-0.5 text-sm text-ink',
-          mono && 'font-mono tabular-nums',
-        )}
-      >
+      <div className={clsx('mt-1 text-sm font-medium text-ink', mono && 'font-mono')}>
         {value}
       </div>
     </div>
+  )
+}
+
+/** Label/value rows, the standard way a detail page lists facts. */
+export function FactList({
+  items,
+  className,
+}: {
+  items: Array<{ label: string; value: ReactNode; mono?: boolean } | false | null | undefined | ''>
+  className?: string
+}) {
+  return (
+    <dl className={clsx('divide-y divide-line', className)}>
+      {items.filter(Boolean).map((item) => {
+        const fact = item as { label: string; value: ReactNode; mono?: boolean }
+        return (
+          <div
+            key={fact.label}
+            className="flex items-baseline justify-between gap-4 px-4 py-3 sm:px-5"
+          >
+            <dt className="shrink-0 text-sm text-ink-dim">{fact.label}</dt>
+            <dd
+              className={clsx(
+                'min-w-0 text-right text-sm font-medium text-ink',
+                fact.mono && 'font-mono',
+              )}
+            >
+              {fact.value}
+            </dd>
+          </div>
+        )
+      })}
+    </dl>
   )
 }
 
@@ -361,38 +482,81 @@ export function Stat({
  * ========================================================================== */
 
 const BUTTON_BASE =
-  'inline-flex items-center justify-center gap-1.5 rounded-md border font-medium whitespace-nowrap ' +
-  'transition-colors disabled:cursor-not-allowed disabled:opacity-50'
+  'inline-flex select-none items-center justify-center gap-2 rounded-lg font-medium whitespace-nowrap ' +
+  'transition-[background-color,border-color,color,box-shadow,transform] duration-150 ' +
+  'active:translate-y-px disabled:pointer-events-none disabled:opacity-45'
 
-// Comfortable to tap on a phone, unchanged on a pointer device from sm up.
+// Comfortable to tap on a phone, tighter on a pointer device from sm up.
 const BUTTON_SIZE = {
-  sm: 'h-8 px-2.5 text-sm',
-  md: 'h-10 px-3.5 text-sm sm:h-9',
+  sm: 'h-9 px-3 text-sm sm:h-8 sm:px-2.5',
+  md: 'h-11 px-4 text-[0.9375rem] sm:h-9 sm:px-3.5 sm:text-sm',
+  lg: 'h-12 px-5 text-base',
 }
 
 const BUTTON_VARIANT = {
-  primary: 'border-brand bg-brand text-on-brand hover:bg-brand-hover hover:border-brand-hover',
-  secondary: 'border-line bg-surface-1 text-ink hover:bg-surface-2',
-  ghost: 'border-transparent bg-transparent text-ink-soft hover:bg-surface-2 hover:text-ink',
-  danger: 'border-st-delayed/30 bg-surface-1 text-st-delayed hover:bg-st-delayed/10',
+  primary:
+    'bg-brand text-on-brand shadow-brand hover:bg-brand-hover border border-transparent',
+  secondary:
+    'border border-line bg-surface-1 text-ink shadow-button hover:border-line-strong hover:bg-surface-2',
+  ghost: 'border border-transparent bg-transparent text-ink-soft hover:bg-surface-2 hover:text-ink',
+  danger:
+    'border border-st-delayed/25 bg-surface-1 text-st-delayed shadow-button hover:bg-st-delayed/8',
+  dark: 'border border-transparent bg-night text-on-night hover:bg-night-raised',
 }
 
 export type ButtonVariant = keyof typeof BUTTON_VARIANT
+
+export function buttonClass(
+  variant: ButtonVariant = 'secondary',
+  size: keyof typeof BUTTON_SIZE = 'md',
+  className?: string,
+) {
+  return clsx(BUTTON_BASE, BUTTON_SIZE[size], BUTTON_VARIANT[variant], className)
+}
 
 export function Button({
   children,
   variant = 'secondary',
   size = 'md',
   className,
+  type = 'button',
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant
-  size?: 'sm' | 'md'
+  size?: keyof typeof BUTTON_SIZE
+}) {
+  return (
+    <button type={type} {...rest} className={buttonClass(variant, size, className)}>
+      {children}
+    </button>
+  )
+}
+
+/** A square, icon-only button. Always give it a label for screen readers. */
+export function IconButton({
+  label,
+  children,
+  className,
+  variant = 'ghost',
+  ...rest
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  label: string
+  variant?: 'ghost' | 'secondary'
 }) {
   return (
     <button
+      type="button"
+      aria-label={label}
+      title={label}
       {...rest}
-      className={clsx(BUTTON_BASE, BUTTON_SIZE[size], BUTTON_VARIANT[variant], className)}
+      className={clsx(
+        'grid size-10 shrink-0 place-items-center rounded-lg transition-colors sm:size-9',
+        'disabled:pointer-events-none disabled:opacity-35',
+        variant === 'ghost' && 'text-ink-soft hover:bg-surface-2 hover:text-ink',
+        variant === 'secondary' &&
+          'border border-line bg-surface-1 text-ink-soft shadow-button hover:bg-surface-2 hover:text-ink',
+        className,
+      )}
     >
       {children}
     </button>
@@ -410,36 +574,32 @@ export function LinkButton({
   to: string
   children: ReactNode
   variant?: ButtonVariant
-  size?: 'sm' | 'md'
+  size?: keyof typeof BUTTON_SIZE
   className?: string
 }) {
   return (
-    <Link
-      to={to}
-      className={clsx(BUTTON_BASE, BUTTON_SIZE[size], BUTTON_VARIANT[variant], className)}
-    >
+    <Link to={to} className={buttonClass(variant, size, className)}>
       {children}
     </Link>
   )
 }
 
-export const inputClass =
-  'h-11 w-full rounded-md border border-line bg-surface-1 px-3 text-base text-ink sm:h-9 sm:text-sm ' +
-  'transition-colors placeholder:text-ink-dim ' +
-  'focus:border-brand focus:ring-2 focus:ring-brand/20 focus:outline-none ' +
+const FIELD_BASE =
+  'w-full rounded-lg border border-line bg-surface-1 text-ink shadow-button ' +
+  'transition-[border-color,box-shadow] placeholder:text-ink-dim ' +
+  'hover:border-line-strong focus:border-brand focus:ring-3 focus:ring-brand/15 focus:outline-none ' +
   'disabled:bg-surface-2 disabled:text-ink-dim'
 
-export const textareaClass =
-  'w-full rounded-md border border-line bg-surface-1 px-3 py-2 text-base text-ink sm:text-sm ' +
-  'transition-colors placeholder:text-ink-dim ' +
-  'focus:border-brand focus:ring-2 focus:ring-brand/20 focus:outline-none'
+// 16px on phones stops iOS zooming into the field on focus.
+export const inputClass = `${FIELD_BASE} h-11 px-3 text-base sm:h-10 sm:text-sm`
+
+export const textareaClass = `${FIELD_BASE} px-3 py-2.5 text-base leading-relaxed sm:text-sm`
 
 /** Native select, restyled to match the inputs. */
 export const selectClass =
-  'h-11 w-full appearance-none rounded-md border border-line bg-surface-1 pr-8 pl-3 text-base text-ink sm:h-9 sm:text-sm ' +
-  'transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20 focus:outline-none ' +
-  "bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22%23737a89%22><path d=%22M5.5 7.5 10 12l4.5-4.5z%22/></svg>')] " +
-  'bg-[length:1.1rem] bg-[position:right_0.4rem_center] bg-no-repeat'
+  `${FIELD_BASE} h-11 appearance-none pr-9 pl-3 text-base sm:h-10 sm:text-sm ` +
+  "bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22none%22 stroke=%22%23767c8f%22 stroke-width=%221.6%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22m6 8 4 4 4-4%22/></svg>')] " +
+  'bg-[length:1.1rem] bg-[position:right_0.6rem_center] bg-no-repeat'
 
 export function Field({
   label,
@@ -447,21 +607,26 @@ export function Field({
   error,
   children,
   className,
+  optional = false,
 }: {
   label: string
   hint?: ReactNode
   error?: ReactNode
   children: ReactNode
   className?: string
+  optional?: boolean
 }) {
   return (
     <label className={clsx('flex flex-col gap-1.5', className)}>
-      <span className="text-sm font-medium text-ink">{label}</span>
+      <span className="flex items-baseline gap-1.5 text-sm font-medium text-ink">
+        {label}
+        {optional && <span className="text-xs font-normal text-ink-dim">Optional</span>}
+      </span>
       {children}
       {error ? (
-        <span className="text-xs text-st-delayed">{error}</span>
+        <span className="text-xs font-medium text-st-delayed">{error}</span>
       ) : (
-        hint && <span className="text-xs text-ink-dim">{hint}</span>
+        hint && <span className="text-xs leading-relaxed text-ink-dim">{hint}</span>
       )}
     </label>
   )
@@ -472,44 +637,43 @@ export function SearchInput({
   onChange,
   placeholder,
   className,
+  autoFocus,
 }: {
   value: string
   onChange: (next: string) => void
   placeholder?: string
   className?: string
+  autoFocus?: boolean
 }) {
   return (
     <div className={clsx('relative', className)}>
-      <svg
-        viewBox="0 0 20 20"
-        aria-hidden
-        className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-ink-dim"
-      >
-        <path
-          fill="currentColor"
-          d="M8.5 3a5.5 5.5 0 0 1 4.23 9.02l3.63 3.62a.75.75 0 0 1-1.06 1.06l-3.62-3.62A5.5 5.5 0 1 1 8.5 3Zm0 1.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"
-        />
-      </svg>
+      <IconSearch
+        size={16}
+        className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-dim"
+      />
       <input
+        type="search"
         value={value}
+        autoFocus={autoFocus}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className={clsx(inputClass, 'pl-8')}
+        className={clsx(inputClass, 'pr-9 pl-9 [&::-webkit-search-cancel-button]:hidden')}
       />
       {value && (
         <button
+          type="button"
           onClick={() => onChange('')}
           aria-label="Clear search"
-          className="absolute top-1/2 right-2 grid size-5 -translate-y-1/2 place-items-center rounded text-ink-dim hover:bg-surface-2 hover:text-ink"
+          className="absolute top-1/2 right-1.5 grid size-8 -translate-y-1/2 place-items-center rounded-md text-ink-dim hover:bg-surface-2 hover:text-ink sm:size-7"
         >
-          ×
+          <IconClose size={14} />
         </button>
       )}
     </div>
   )
 }
 
-/** Segmented filter chip, used for every status / quick filter row. */
+/** One filter chip. Group them in a `ChipBar`. */
 export function FilterChip({
   active,
   onClick,
@@ -527,13 +691,14 @@ export function FilterChip({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       aria-pressed={active}
       className={clsx(
-        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors sm:h-7 sm:px-2',
+        'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-medium whitespace-nowrap transition-colors sm:h-8',
         active
-          ? 'border-brand bg-brand-tint text-brand'
-          : 'border-line bg-surface-1 text-ink-soft hover:bg-surface-2 hover:text-ink',
+          ? 'bg-night text-on-night shadow-button'
+          : 'bg-surface-1 text-ink-soft ring-1 ring-line ring-inset hover:bg-surface-2 hover:text-ink',
         className,
       )}
     >
@@ -543,13 +708,83 @@ export function FilterChip({
         <span
           className={clsx(
             'tabular-nums',
-            active ? 'text-brand/70' : 'text-ink-dim',
+            active ? 'text-on-night-dim' : 'text-ink-dim',
           )}
         >
-          {count}
+          {count.toLocaleString('en-IN')}
         </span>
       )}
     </button>
+  )
+}
+
+/**
+ * A single row of chips that scrolls sideways rather than wrapping. On a
+ * phone, nine status filters wrapped onto four lines and pushed the list off
+ * the screen; one swipeable row keeps them all a thumb away.
+ */
+export function ChipBar({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={clsx('-mx-4 sm:mx-0', className)}>
+      <div className="scroller-x fade-x gap-1.5 px-4 py-0.5 sm:fade-x sm:px-0.5">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+/** A divider between chip groups in a ChipBar. */
+export function ChipDivider() {
+  return <span className="mx-1 h-5 w-px shrink-0 self-center bg-line" aria-hidden />
+}
+
+/** Mutually exclusive options, shown together. For sort orders and views. */
+export function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+  className,
+  size = 'md',
+}: {
+  value: T
+  onChange: (next: T) => void
+  options: Array<{ value: T; label: ReactNode }>
+  className?: string
+  size?: 'sm' | 'md'
+}) {
+  return (
+    <div
+      role="radiogroup"
+      className={clsx(
+        'inline-flex max-w-full min-w-0 shrink-0 rounded-lg bg-surface-2 p-0.5 ring-1 ring-line ring-inset',
+        className,
+      )}
+    >
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          onClick={() => onChange(option.value)}
+          className={clsx(
+            'min-w-0 flex-1 truncate rounded-md px-2 font-medium whitespace-nowrap transition-[background-color,color,box-shadow] sm:px-2.5',
+            size === 'sm' ? 'h-8 text-xs sm:h-7' : 'h-10 text-sm sm:h-8',
+            value === option.value
+              ? 'bg-surface-1 text-ink shadow-button ring-1 ring-line'
+              : 'text-ink-dim hover:text-ink',
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -646,10 +881,10 @@ export function Table({
         className="w-full border-collapse text-left"
         style={minWidth ? { minWidth } : undefined}
       >
-        <thead className="sticky top-0 z-10 bg-surface-2">
+        <thead className="bg-surface-2/70">
           <tr className="border-b border-line">{head}</tr>
         </thead>
-        <tbody>{children}</tbody>
+        <tbody className="divide-y divide-line/80">{children}</tbody>
       </table>
     </div>
   )
@@ -668,7 +903,7 @@ export function Th({
     <th
       scope="col"
       className={clsx(
-        'label px-4 py-2.5 font-semibold',
+        'label h-10 px-4 font-medium whitespace-nowrap first:pl-5 last:pr-5',
         align === 'right' && 'text-right',
         className,
       )}
@@ -693,7 +928,8 @@ export function Tr({
     <tr
       {...rowLink}
       className={clsx(
-        'border-b border-line/70 transition-colors last:border-0 hover:bg-surface-2/70',
+        'group/row transition-colors',
+        to ? 'hover:bg-brand-tint/45' : 'hover:bg-surface-2/50',
         rowLink.className,
         className,
       )}
@@ -715,7 +951,7 @@ export function Td({
   return (
     <td
       className={clsx(
-        'px-4 py-3 align-middle text-sm',
+        'px-4 py-3 align-middle text-sm first:pl-5 last:pr-5',
         align === 'right' && 'text-right',
         className,
       )}
@@ -726,24 +962,64 @@ export function Td({
 }
 
 /**
- * Renders `cards` on a phone and `table` from md up.
+ * Renders `cards` on narrow screens and `table` from `breakpoint` up.
  *
- * A dense table cannot be made comfortable on a 390px screen -- it either
- * scrolls sideways or shrinks past readability -- so screens that have both
- * audiences supply two presentations of the same rows.
+ * A dense table cannot be made comfortable on a narrow screen -- it either
+ * scrolls sideways or shrinks past readability -- so every list supplies two
+ * presentations of the same rows. Wide control-room tables switch at `xl`,
+ * because below that the sidebar leaves less room than the columns need.
  */
+const LIST_BREAKPOINT = {
+  md: ['md:hidden', 'hidden md:block'],
+  lg: ['lg:hidden', 'hidden lg:block'],
+  xl: ['xl:hidden', 'hidden xl:block'],
+  '2xl': ['2xl:hidden', 'hidden 2xl:block'],
+} as const
+
 export function ResponsiveList({
   cards,
   table,
+  breakpoint = 'md',
 }: {
   cards: ReactNode
   table: ReactNode
+  breakpoint?: keyof typeof LIST_BREAKPOINT
 }) {
+  const [cardClass, tableClass] = LIST_BREAKPOINT[breakpoint]
   return (
     <>
-      <div className="md:hidden">{cards}</div>
-      <div className="hidden md:block">{table}</div>
+      <div className={cardClass}>{cards}</div>
+      <div className={tableClass}>{table}</div>
     </>
+  )
+}
+
+/**
+ * One tappable row in a phone list. The whole card opens `to`; nested links
+ * and buttons keep their own behaviour.
+ */
+export function ListCard({
+  to,
+  children,
+  className,
+}: {
+  to?: string
+  children: ReactNode
+  className?: string
+}) {
+  const rowLink = useRowLink(to)
+  return (
+    <li
+      {...rowLink}
+      className={clsx(
+        'px-4 py-3.5 transition-colors',
+        to && 'active:bg-surface-2',
+        rowLink.className,
+        className,
+      )}
+    >
+      {children}
+    </li>
   )
 }
 
@@ -758,8 +1034,34 @@ export function CellStack({
   return (
     <div className="min-w-0">
       <div className="truncate font-medium text-ink">{primary}</div>
-      {secondary && <div className="truncate text-xs text-ink-dim">{secondary}</div>}
+      {secondary && <div className="mt-0.5 truncate text-xs text-ink-dim">{secondary}</div>}
     </div>
+  )
+}
+
+/** An order code, registration or trip code: mono, and a link when it can be. */
+export function Code({
+  to,
+  children,
+  className,
+}: {
+  to?: string
+  children: ReactNode
+  className?: string
+}) {
+  // A caller's colour must win, and Tailwind resolves conflicts by stylesheet
+  // order rather than class order, so the default is dropped when one is given.
+  const coloured = /(^|\s)text-(brand|ink|st-|on-)/.test(className ?? '')
+  const classes = clsx(
+    'font-mono text-[0.8125rem] font-medium whitespace-nowrap',
+    !coloured && 'text-ink',
+    className,
+  )
+  if (!to) return <span className={classes}>{children}</span>
+  return (
+    <Link to={to} className={clsx(classes, 'hover:text-brand hover:underline underline-offset-2')}>
+      {children}
+    </Link>
   )
 }
 
@@ -767,12 +1069,19 @@ export function CellStack({
  * Pagination
  * ========================================================================== */
 
+/** "orders" -> "order", "addresses" -> "address". Enough for our nouns. */
+function singular(noun: string): string {
+  if (noun.endsWith('sses')) return noun.slice(0, -2)
+  if (noun.endsWith('s')) return noun.slice(0, -1)
+  return noun
+}
+
 /**
  * The footer under every list.
  *
  * It states the range and the true total, because "1–25" alone tells an
  * operator nothing about whether there are 30 rows or 30,000. Page size is
- * adjustable, since what fits a phone and a desk monitor differ.
+ * adjustable on a desk; on a phone it collapses to a range and two arrows.
  */
 export function Pagination({
   page,
@@ -795,35 +1104,40 @@ export function Pagination({
   if (page.total === 0) return null
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
-      <p className="text-sm text-ink-soft tabular-nums">
+    <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2.5 sm:px-5">
+      <p className="min-w-0 truncate text-sm text-ink-dim tabular-nums">
         {page.total <= page.page_size ? (
           <>
-            {page.total.toLocaleString('en-IN')} {noun}
+            <span className="font-medium text-ink-soft">
+              {page.total.toLocaleString('en-IN')}
+            </span>{' '}
+            {page.total === 1 ? singular(noun) : noun}
           </>
         ) : (
           <>
-            Showing{' '}
-            <span className="font-medium text-ink">
+            <span className="font-medium text-ink-soft">
               {from.toLocaleString('en-IN')}–{to.toLocaleString('en-IN')}
             </span>{' '}
-            of <span className="font-medium text-ink">
+            of{' '}
+            <span className="font-medium text-ink-soft">
               {page.total.toLocaleString('en-IN')}
-            </span>{' '}
-            {noun}
+            </span>
+            <span className="hidden sm:inline"> {noun}</span>
           </>
         )}
-        {busy && <span className="ml-2 text-ink-dim">updating…</span>}
+        {busy && (
+          <span className="ml-2 inline-block size-3 animate-spin rounded-full border-[1.5px] border-surface-3 border-t-brand align-[-1px]" />
+        )}
       </p>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-3">
         {onPageSize && (
-          <label className="hidden items-center gap-2 text-sm text-ink-dim sm:flex">
-            Per page
+          <label className="hidden items-center gap-2 text-sm text-ink-dim md:flex">
+            Rows
             <select
               value={pageSize}
               onChange={(event) => onPageSize(Number(event.target.value))}
-              className={clsx(selectClass, 'h-8 w-auto py-0 text-sm')}
+              className={clsx(selectClass, 'h-8 w-auto py-0 pr-8 text-sm sm:h-8')}
             >
               {[25, 50, 100, 200].map((option) => (
                 <option key={option} value={option}>
@@ -836,23 +1150,27 @@ export function Pagination({
 
         {page.pages > 1 && (
           <div className="flex items-center gap-1">
-            <Button
-              size="sm"
+            <IconButton
+              label="Previous page"
+              variant="secondary"
               onClick={() => onPage(page.page - 1)}
               disabled={!page.has_previous}
+              className="sm:size-8"
             >
-              Previous
-            </Button>
-            <span className="px-2 text-sm text-ink-soft tabular-nums">
+              <IconChevronLeft size={16} />
+            </IconButton>
+            <span className="min-w-14 px-1 text-center text-sm text-ink-soft tabular-nums">
               {page.page} / {page.pages}
             </span>
-            <Button
-              size="sm"
+            <IconButton
+              label="Next page"
+              variant="secondary"
               onClick={() => onPage(page.page + 1)}
               disabled={!page.has_next}
+              className="sm:size-8"
             >
-              Next
-            </Button>
+              <IconChevronRight size={16} />
+            </IconButton>
           </div>
         )}
       </div>
@@ -868,38 +1186,56 @@ export function EmptyState({
   title,
   hint,
   action,
+  icon,
 }: {
   title: string
   hint?: string
   action?: ReactNode
+  icon?: ReactNode
 }) {
   return (
-    <div className="flex h-full min-h-44 flex-col items-center justify-center gap-2 p-10 text-center">
-      <p className="text-base font-medium text-ink">{title}</p>
-      {hint && <p className="max-w-sm text-sm text-ink-dim">{hint}</p>}
-      {action && <div className="mt-2">{action}</div>}
+    <div className="flex h-full min-h-48 flex-col items-center justify-center px-6 py-12 text-center">
+      <span className="mb-3 grid size-11 place-items-center rounded-full bg-surface-2 text-ink-dim ring-1 ring-line">
+        {icon ?? <IconInfo size={20} />}
+      </span>
+      <p className="text-base font-semibold text-ink">{title}</p>
+      {hint && <p className="mt-1 max-w-sm text-sm leading-relaxed text-ink-dim">{hint}</p>}
+      {action && <div className="mt-4">{action}</div>}
     </div>
   )
 }
 
-export function Spinner({ label }: { label?: string }) {
+/**
+ * Loading placeholder. Shaped like the content it stands in for, so the page
+ * does not jump when the data arrives.
+ */
+export function Spinner({ label, rows = 5 }: { label?: string; rows?: number }) {
   return (
-    <div className="flex h-full min-h-44 items-center justify-center gap-2.5 p-10 text-sm text-ink-dim">
-      <span className="size-4 animate-spin rounded-full border-2 border-surface-3 border-t-brand" />
-      {label ?? 'Loading'}
+    <div className="space-y-3 p-4 sm:p-5" role="status" aria-label={label ?? 'Loading'}>
+      <span className="sr-only">{label ?? 'Loading'}</span>
+      {Array.from({ length: rows }, (_, index) => (
+        <div key={index} className="flex items-center gap-4">
+          <div className="skeleton h-4 w-24" />
+          <div className="skeleton h-4 flex-1" style={{ opacity: 1 - index * 0.13 }} />
+          <div className="skeleton hidden h-4 w-20 sm:block" />
+        </div>
+      ))}
     </div>
   )
 }
 
 export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="m-4 rounded-md border border-st-delayed/25 bg-st-delayed/8 p-4">
-      <p className="text-sm font-medium text-st-delayed">{message}</p>
-      {onRetry && (
-        <Button size="sm" variant="secondary" className="mt-2.5" onClick={onRetry}>
-          Try again
-        </Button>
-      )}
+    <div className="m-4 flex items-start gap-3 rounded-xl bg-st-delayed/8 p-4 ring-1 ring-st-delayed/20">
+      <IconAlert size={18} className="mt-0.5 text-st-delayed" />
+      <div>
+        <p className="text-sm font-medium text-st-delayed">{message}</p>
+        {onRetry && (
+          <Button size="sm" variant="secondary" className="mt-2.5" onClick={onRetry}>
+            Try again
+          </Button>
+        )}
+      </div>
     </div>
   )
 }
@@ -909,23 +1245,67 @@ export function Callout({
   tone = 'info',
   children,
 }: {
-  tone?: 'info' | 'warning' | 'danger'
+  tone?: 'info' | 'warning' | 'danger' | 'success'
   children: ReactNode
 }) {
+  const Icon = tone === 'info' ? IconInfo : IconAlert
   return (
     <div
       className={clsx(
-        'rounded-md border px-3 py-2 text-sm',
-        tone === 'info' && 'border-brand/20 bg-brand-tint text-ink-soft',
-        tone === 'warning' && 'border-st-assigned/25 bg-st-assigned/8 text-st-assigned',
-        tone === 'danger' && 'border-st-delayed/25 bg-st-delayed/8 text-st-delayed',
+        'flex items-start gap-2.5 rounded-xl px-3.5 py-3 text-sm leading-relaxed ring-1 ring-inset',
+        tone === 'info' && 'bg-brand-tint/70 text-ink-soft ring-brand/15',
+        tone === 'warning' && 'bg-st-assigned/8 text-[oklch(0.45_0.1_68)] ring-st-assigned/20',
+        tone === 'danger' && 'bg-st-delayed/8 text-st-delayed ring-st-delayed/20',
+        tone === 'success' && 'bg-st-available/8 text-st-available ring-st-available/20',
       )}
     >
-      {children}
+      <Icon
+        size={16}
+        className={clsx(
+          'mt-0.5',
+          tone === 'info' && 'text-brand',
+          tone === 'warning' && 'text-st-assigned',
+        )}
+      />
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   )
 }
 
+/* ========================================================================== *
+ * Dialogs and sheets
+ * ========================================================================== */
+
+/** Stop the page behind an overlay from scrolling, and close it on Escape. */
+function useOverlay(open: boolean, onClose: () => void) {
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCloseRef.current()
+    }
+    window.addEventListener('keydown', onKey)
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = previous
+    }
+  }, [open])
+}
+
+/**
+ * A dialog on a desk, a bottom sheet on a phone.
+ *
+ * On a phone a centred dialog leaves its buttons at the top of the screen,
+ * out of thumb reach, and fights the keyboard. Rising from the bottom keeps
+ * the actions under the thumb and gives the form the full height.
+ *
+ * `placement="side"` turns it into a right-hand drawer from `lg` up, for
+ * panels that sit beside the work rather than over it.
+ */
 export function Modal({
   open,
   onClose,
@@ -934,6 +1314,7 @@ export function Modal({
   children,
   footer,
   width = 'max-w-xl',
+  placement = 'center',
 }: {
   open: boolean
   onClose: () => void
@@ -942,57 +1323,100 @@ export function Modal({
   children: ReactNode
   footer?: ReactNode
   width?: string
+  placement?: 'center' | 'side'
 }) {
-  useEffect(() => {
-    if (!open) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    // Stop the page behind the dialog from scrolling.
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
-    }
-  }, [open, onClose])
+  useOverlay(open, onClose)
 
   if (!open) return null
 
+  const side = placement === 'side'
+
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-ink/25 p-4 backdrop-blur-[1px] sm:items-center sm:p-6">
-      <div className="absolute inset-0" onClick={onClose} aria-hidden />
+    <div
+      className={clsx(
+        'fixed inset-0 z-50 flex items-end justify-center',
+        side ? 'lg:items-stretch lg:justify-end' : 'sm:items-center sm:p-6',
+      )}
+    >
+      <div
+        className="absolute inset-0 animate-fade-in bg-night/40 backdrop-blur-[2px]"
+        onClick={onClose}
+        aria-hidden
+      />
       <div
         role="dialog"
         aria-modal="true"
         className={clsx(
-          'relative z-10 my-auto w-full rounded-xl border border-line bg-surface-1',
-          'shadow-[0_16px_48px_-12px_rgb(15_23_42/0.25)]',
-          width,
+          'relative z-10 flex max-h-[92dvh] w-full flex-col bg-surface-1 shadow-overlay',
+          // Phone: a sheet rising from the bottom edge.
+          'animate-sheet-up rounded-t-2xl',
+          side
+            ? 'lg:max-h-none lg:w-[30rem] lg:max-w-[92vw] lg:animate-slide-in-right lg:rounded-none lg:border-l lg:border-line'
+            : clsx('sm:max-h-[86vh] sm:animate-pop sm:rounded-2xl sm:border sm:border-line', width),
         )}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+        {/* The grab handle tells a phone user this can be dismissed downward. */}
+        <div className={clsx('flex justify-center pt-2.5', side ? 'lg:hidden' : 'sm:hidden')}>
+          <span className="h-1 w-10 rounded-full bg-surface-3" />
+        </div>
+        <header className="flex shrink-0 items-start justify-between gap-4 px-5 pt-3 pb-4 sm:pt-5">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-ink">{title}</h2>
-            {description && <p className="mt-0.5 text-sm text-ink-dim">{description}</p>}
+            <h2 className="text-lg font-semibold tracking-tight text-ink">{title}</h2>
+            {description && (
+              <p className="mt-1 text-sm leading-relaxed text-ink-dim">{description}</p>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            className="-mr-1 grid size-7 shrink-0 place-items-center rounded-md text-lg leading-none text-ink-dim hover:bg-surface-2 hover:text-ink"
-            aria-label="Close"
-          >
-            ×
-          </button>
+          <IconButton label="Close" onClick={onClose} className="-mt-1 -mr-2">
+            <IconClose size={18} />
+          </IconButton>
         </header>
-        <div className="max-h-[68vh] overflow-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5">
+          {children}
+        </div>
         {footer && (
-          <footer className="flex items-center justify-end gap-2 border-t border-line bg-surface-2/50 px-5 py-3.5">
+          <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-surface-2/40 px-5 py-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))] max-sm:*:flex-1">
             {footer}
           </footer>
         )}
       </div>
     </div>,
     document.body,
+  )
+}
+
+/**
+ * A bar pinned to the bottom of a phone screen for the page's main action.
+ * Renders nothing from `lg` up unless `always` is set; the desk layout has
+ * room for the action where it belongs.
+ *
+ * `offset` lifts it above the shell's own tab bar, which is shown below `lg`
+ * in the control room and below `sm` in the customer portal.
+ */
+export function StickyActionBar({
+  children,
+  className,
+  always = false,
+  offset = 'lg',
+}: {
+  children: ReactNode
+  className?: string
+  always?: boolean
+  offset?: 'lg' | 'sm' | 'none'
+}) {
+  return (
+    <div
+      className={clsx(
+        'fixed inset-x-0 z-30 border-t border-line bg-surface-1/95 px-4 py-3 shadow-[0_-8px_24px_-12px_oklch(0.25_0.03_268/0.18)] backdrop-blur-md',
+        offset === 'lg' &&
+          'bottom-[calc(4rem+env(safe-area-inset-bottom))] lg:bottom-0 lg:pb-3',
+        offset === 'sm' &&
+          'bottom-[calc(4rem+env(safe-area-inset-bottom))] sm:bottom-0 sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+        offset === 'none' && 'bottom-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+        !always && 'lg:hidden',
+        className,
+      )}
+    >
+      {children}
+    </div>
   )
 }

@@ -16,6 +16,7 @@ from .database import Base, SessionLocal, engine, get_db
 from .models import Truck
 from .routers import (
     alerts,
+    customers,
     assignment,
     auth,
     dashboard,
@@ -135,6 +136,7 @@ for module in (
     search,
     portal,
     driver_app,
+    customers,
 ):
     app.include_router(module.router)
 

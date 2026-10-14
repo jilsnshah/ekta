@@ -13,6 +13,9 @@ import type {
   Order,
   OtpRequestResult,
   PartySession,
+  CompanyAdmin,
+  Customer,
+  CustomerDetail,
   DriverStats,
   OrderStats,
   TripStats,
@@ -236,6 +239,8 @@ export interface OrderFilters extends PageQuery {
   source?: string
   pickup_overdue?: boolean
   pickup_within_days?: number
+  customer_id?: number
+  company_id?: number
   search?: string
   sort?: string
   descending?: boolean
@@ -306,9 +311,54 @@ export const api = {
    * The control room's address book: its own entries first, then every
    * billing party's, each labelled with whose it is.
    */
-  places: (params: PageQuery & { mine_only?: boolean; search?: string } = {}) =>
+  places: (
+    params: PageQuery & {
+      mine_only?: boolean
+      search?: string
+      /** One customer's book plus the control room's, theirs first. */
+      account_id?: number
+      /** With account_id: that customer's book alone. */
+      only_account?: boolean
+    } = {},
+  ) =>
     request<Page<SavedPlace>>(
       `/api/orders/places${qs(params as Record<string, unknown>)}`,
+    ),
+
+  customers: (params: PageQuery & { search?: string; signed_in?: boolean } = {}) =>
+    request<Page<Customer>>(`/api/customers${qs(params as Record<string, unknown>)}`),
+  customer: (id: number) => request<CustomerDetail>(`/api/customers/${id}`),
+  /** The customer with this number, or null -- called as a number is typed. */
+  customerByPhone: (phone: string) =>
+    request<CustomerDetail | null>(`/api/customers/lookup${qs({ phone })}`),
+  createCustomer: (body: {
+    phone: string
+    full_name?: string | null
+    company?: Record<string, unknown> | null
+  }) =>
+    request<CustomerDetail>('/api/customers', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateCustomer: (id: number, body: { full_name?: string | null; is_active?: boolean }) =>
+    request<CustomerDetail>(`/api/customers/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  addCustomerCompany: (customerId: number, body: Record<string, unknown>) =>
+    request<CompanyAdmin>(`/api/customers/${customerId}/companies`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateCompany: (companyId: number, body: Record<string, unknown>) =>
+    request<CompanyAdmin>(`/api/customers/companies/${companyId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  /** Every customer's companies, for choosing who an order is billed to. */
+  companies: (params: PageQuery & { search?: string } = {}) =>
+    request<Page<CompanyAdmin>>(
+      `/api/customers/companies${qs(params as Record<string, unknown>)}`,
     ),
   createPlace: (body: Record<string, unknown>) =>
     request<SavedPlace>('/api/orders/places', {

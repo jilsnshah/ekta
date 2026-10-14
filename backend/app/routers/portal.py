@@ -36,6 +36,7 @@ from ..portal_security import (
     verify_otp,
 )
 from ..services import places as place_service
+from ..services import customers as customer_service
 from ..services import portal as portal_service
 from ..services.realtime import hub
 
@@ -155,25 +156,7 @@ def create_company(
     db: Session = Depends(get_db),
     account: PartyAccount = Depends(current_party),
 ):
-    name = payload.name.strip()
-    clash = db.scalar(
-        select(Company)
-        .where(Company.account_id == account.id)
-        .where(func.lower(Company.name) == name.lower())
-    )
-    if clash is not None:
-        raise HTTPException(
-            status_code=409, detail=f"You have already added “{clash.name}”"
-        )
-
-    company = Company(
-        account_id=account.id,
-        name=name,
-        gst_number=(payload.gst_number or "").strip() or None,
-        contact_person=(payload.contact_person or "").strip() or None,
-        address=(payload.address or "").strip() or None,
-    )
-    db.add(company)
+    company = customer_service.add_company(db, account, payload)
     db.commit()
     db.refresh(company)
     return portal_service.company_out(db, company)
@@ -330,14 +313,15 @@ def list_orders(
     stage: Optional[str] = None,
     search: Optional[str] = None,
 ):
-    """This account's orders, newest first.
+    """This account's orders, newest first -- including any the control room
+    raised for one of their companies.
 
     ``stage`` is the party-facing grouping, mapped back to the underlying
     statuses so the filter runs in SQL rather than over one page.
     """
     stmt = (
         select(TransportOrder)
-        .where(TransportOrder.placed_by_account_id == account.id)
+        .where(customer_service.orders_of(account.id))
         .order_by(TransportOrder.created_at.desc(), TransportOrder.id.desc())
     )
 

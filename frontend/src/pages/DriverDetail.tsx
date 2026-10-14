@@ -1,24 +1,22 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { usePaged } from '../lib/usePaged'
-import { fmtDate, fmtDateTime, fmtTons } from '../lib/format'
-import { MetaItem, PageHeader } from '../components/shell'
+import { fmtDate } from '../lib/format'
+import { IconDriver, IconPhone, IconTrips, IconTruck } from '../components/icons'
+import { PageBody, PageHeader } from '../components/shell'
+import { TripHistoryList } from '../components/tripList'
 import {
+  Avatar,
   Callout,
+  Code,
   DriverStatusBadge,
   EmptyState,
+  FactList,
   LinkButton,
   Pagination,
   Panel,
-  ProgressBar,
   Spinner,
-  Stat,
-  Table,
-  Td,
-  Th,
-  Tr,
-  TripStatusBadge,
 } from '../components/ui'
 
 export default function DriverDetail() {
@@ -41,8 +39,18 @@ export default function DriverDetail() {
     pageSize: 10,
   })
 
-  if (driver.isLoading) return <Spinner label="Loading driver" />
-  if (!driver.data) return <EmptyState title="Driver not found" />
+  if (driver.isLoading)
+    return (
+      <PageBody>
+        <Spinner label="Loading driver" />
+      </PageBody>
+    )
+  if (!driver.data)
+    return (
+      <PageBody>
+        <EmptyState icon={<IconDriver size={20} />} title="Driver not found" />
+      </PageBody>
+    )
 
   const d = driver.data
   const licenceExpired = d.license_expiry
@@ -50,39 +58,45 @@ export default function DriverDetail() {
     : false
 
   return (
-    <div className="p-6">
+    <PageBody>
       <PageHeader
-        back={{ to: '/drivers', label: 'All drivers' }}
+        back={{ to: '/drivers', label: 'Drivers' }}
+        eyebrow="Driver"
         title={
           <>
+            <Avatar name={d.name} size={40} tone="brand" />
             {d.name}
             <DriverStatusBadge status={d.status} />
           </>
         }
-        meta={
+        subtitle={
           <>
-            <MetaItem label="Phone">
-              <a
-                href={`tel:${d.phone.replace(/\s/g, '')}`}
-                className="text-brand hover:underline"
-              >
-                {d.phone}
-              </a>
-            </MetaItem>
-            <MetaItem label="Driver ID">{d.code}</MetaItem>
-            <MetaItem label="Trips completed">{d.completed_trips}</MetaItem>
+            <span className="font-mono">{d.code}</span>
+            {d.home_city && <> · {d.home_city}</>} · {d.completed_trips}{' '}
+            {d.completed_trips === 1 ? 'trip' : 'trips'} completed
           </>
         }
         actions={
-          d.current_trip_id ? (
-            <LinkButton to={`/trips/${d.current_trip_id}`} variant="primary">
-              Open {d.current_trip_code}
-            </LinkButton>
-          ) : d.truck_id ? (
-            <LinkButton to={`/trucks/${d.truck_id}`}>
-              View {d.truck_registration}
-            </LinkButton>
-          ) : null
+          <>
+            <a
+              href={`tel:${d.phone.replace(/\s/g, '')}`}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-surface-1 px-4 font-mono text-sm text-ink shadow-button transition-colors hover:border-line-strong sm:h-9 sm:px-3.5"
+            >
+              <IconPhone size={16} className="text-st-available" />
+              {d.phone}
+            </a>
+            {d.current_trip_id ? (
+              <LinkButton to={`/trips/${d.current_trip_id}`} variant="primary">
+                <IconTrips size={16} />
+                Open {d.current_trip_code}
+              </LinkButton>
+            ) : d.truck_id ? (
+              <LinkButton to={`/trucks/${d.truck_id}`}>
+                <IconTruck size={16} />
+                View {d.truck_registration}
+              </LinkButton>
+            ) : null}
+          </>
         }
       />
 
@@ -94,120 +108,70 @@ export default function DriverDetail() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[20rem_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[21rem_minmax(0,1fr)]">
         <div className="space-y-4">
-          <Panel title="Driver record">
-            <div className="grid grid-cols-2 gap-4 p-5">
-              <Stat label="Driver ID" value={d.code} mono />
-              <Stat label="Phone" value={d.phone} mono />
-              <Stat label="Licence" value={d.license_number} mono />
-              <Stat label="Licence expiry" value={fmtDate(d.license_expiry)} />
-              <Stat label="Home city" value={d.home_city ?? '—'} />
-            </div>
+          <Panel title="Assignment" bodyClassName="">
+            <FactList
+              items={[
+                {
+                  label: 'Truck',
+                  value: d.truck_id ? (
+                    <Code to={`/trucks/${d.truck_id}`} className="text-brand">
+                      {d.truck_registration}
+                    </Code>
+                  ) : (
+                    <span className="font-normal text-ink-dim">Not assigned</span>
+                  ),
+                },
+                {
+                  label: 'Current trip',
+                  value: d.current_trip_id ? (
+                    <Code to={`/trips/${d.current_trip_id}`} className="text-brand">
+                      {d.current_trip_code}
+                    </Code>
+                  ) : (
+                    <span className="font-normal text-ink-dim">None</span>
+                  ),
+                },
+              ]}
+            />
           </Panel>
 
-          <Panel title="Assignment">
-            <div className="space-y-4 p-5">
-              <Stat
-                label="Truck"
-                value={
-                  d.truck_id ? (
-                    <Link
-                      to={`/trucks/${d.truck_id}`}
-                      className="font-mono font-medium text-brand hover:underline"
-                    >
-                      {d.truck_registration}
-                    </Link>
-                  ) : (
-                    <span className="text-ink-dim">Not assigned</span>
-                  )
-                }
-              />
-              <Stat
-                label="Current trip"
-                value={
-                  d.current_trip_id ? (
-                    <Link
-                      to={`/trips/${d.current_trip_id}`}
-                      className="font-mono font-medium text-brand hover:underline"
-                    >
-                      {d.current_trip_code}
-                    </Link>
-                  ) : (
-                    <span className="text-ink-dim">—</span>
-                  )
-                }
-              />
-            </div>
+          <Panel title="Driver record" bodyClassName="">
+            <FactList
+              items={[
+                { label: 'Driver ID', value: d.code, mono: true },
+                { label: 'Phone', value: d.phone, mono: true },
+                { label: 'Licence', value: d.license_number, mono: true },
+                {
+                  label: 'Licence expires',
+                  value: (
+                    <span className={licenceExpired ? 'text-st-delayed' : undefined}>
+                      {fmtDate(d.license_expiry)}
+                    </span>
+                  ),
+                },
+                { label: 'Home city', value: d.home_city ?? '—' },
+              ]}
+            />
           </Panel>
         </div>
 
         <Panel
           title="Trip history"
-          description={`${trips.page.total.toLocaleString()} trips`}
+          description={`${trips.page.total.toLocaleString('en-IN')} ${trips.page.total === 1 ? 'trip' : 'trips'}`}
+          bodyClassName=""
         >
           {trips.isInitialLoading ? (
-            <Spinner />
+            <Spinner rows={3} />
           ) : trips.items.length === 0 ? (
             <EmptyState
+              icon={<IconTrips size={20} />}
               title="No trips recorded"
               hint="This driver has not been dispatched yet."
             />
           ) : (
-            <Table
-              minWidth="48rem"
-              head={
-                <>
-                  <Th>Trip</Th>
-                  <Th>Truck</Th>
-                  <Th>Status</Th>
-                  <Th align="right">Cargo</Th>
-                  <Th className="w-44">Stops</Th>
-                  <Th align="right">Started</Th>
-                </>
-              }
-            >
-              {trips.items.map((trip) => (
-                <Tr key={trip.id} to={`/trips/${trip.id}`}>
-                  <Td>
-                    <Link
-                      to={`/trips/${trip.id}`}
-                      className="font-mono text-sm font-medium text-ink hover:text-brand"
-                    >
-                      {trip.code}
-                    </Link>
-                  </Td>
-                  <Td>
-                    <Link
-                      to={`/trucks/${trip.truck_id}`}
-                      className="font-mono text-sm hover:text-brand"
-                    >
-                      {trip.truck_registration}
-                    </Link>
-                  </Td>
-                  <Td>
-                    <TripStatusBadge status={trip.status} size="sm" />
-                  </Td>
-                  <Td align="right" className="font-medium tabular-nums">
-                    {fmtTons(trip.total_cargo_tons)}
-                  </Td>
-                  <Td>
-                    <div className="flex items-center gap-2.5">
-                      <span className="shrink-0 text-sm tabular-nums">
-                        {trip.stops_completed}/{trip.stop_count}
-                      </span>
-                      <ProgressBar
-                        percent={trip.progress_percent}
-                        tone={trip.status === 'completed' ? 'success' : 'brand'}
-                      />
-                    </div>
-                  </Td>
-                  <Td align="right" className="text-ink-soft">
-                    {trip.started_at ? fmtDateTime(trip.started_at) : '—'}
-                  </Td>
-                </Tr>
-              ))}
-            </Table>
+            <TripHistoryList trips={trips.items} show="truck" />
           )}
           {trips.items.length > 0 && (
             <Pagination
@@ -221,6 +185,6 @@ export default function DriverDetail() {
           )}
         </Panel>
       </div>
-    </div>
+    </PageBody>
   )
 }

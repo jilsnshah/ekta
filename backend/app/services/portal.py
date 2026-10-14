@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import schemas
+from .customers import orders_of
 from ..models import (
     Company,
     OrderStatus,
@@ -69,6 +70,7 @@ def order_brief(order: TransportOrder) -> schemas.PortalOrderBrief:
         truck_registration=order.truck.registration_number if order.truck else None,
         stage=stage,
         stage_detail=detail,
+        booked_by_us=order.source == "admin",
     )
 
 
@@ -144,11 +146,11 @@ def company_out(db: Session, company: Company) -> schemas.CompanyOut:
 
 
 def my_orders(db: Session, account: PartyAccount) -> List[TransportOrder]:
-    """Every order this account has placed, newest first."""
+    """Every order that belongs to this account, newest first."""
     return list(
         db.scalars(
             select(TransportOrder)
-            .where(TransportOrder.placed_by_account_id == account.id)
+            .where(orders_of(account.id))
             .order_by(TransportOrder.created_at.desc(), TransportOrder.id.desc())
         )
     )
@@ -159,13 +161,14 @@ def find_my_order(
 ) -> Optional[TransportOrder]:
     """One of *this* account's orders, or None.
 
-    Scoped by ``placed_by_account_id`` so another party's order id simply
-    reads as missing.
+    Ownership is the shared rule in ``services.customers.orders_of``: billed to
+    one of their companies, or placed by them -- so an order the control room
+    raised for them is theirs too. Anyone else's order id reads as missing.
     """
     return db.scalar(
         select(TransportOrder)
         .where(TransportOrder.id == order_id)
-        .where(TransportOrder.placed_by_account_id == account.id)
+        .where(orders_of(account.id))
     )
 
 
@@ -173,9 +176,7 @@ def summary(db: Session, account: PartyAccount) -> schemas.PortalSummary:
     """Counted in SQL, so the figures do not load every order to add them up."""
 
     def count(stage: Optional[str] = None) -> int:
-        stmt = select(func.count(TransportOrder.id)).where(
-            TransportOrder.placed_by_account_id == account.id
-        )
+        stmt = select(func.count(TransportOrder.id)).where(orders_of(account.id))
         if stage is not None:
             stmt = stmt.where(TransportOrder.status.in_(statuses_for_stage(stage)))
         return int(db.scalar(stmt) or 0)

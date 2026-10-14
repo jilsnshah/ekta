@@ -6,6 +6,13 @@ import { useAuth } from '../../lib/auth'
 import { fmtDateTime, fmtTons } from '../../lib/format'
 import type { DriverStop, DriverTrip } from '../../lib/types'
 import { DriverPageTitle } from '../../components/driverShell'
+import {
+  IconCheck,
+  IconNavigate,
+  IconPackageDown,
+  IconPackageUp,
+  IconPhone,
+} from '../../components/icons'
 import { useToast } from '../../components/toast'
 import {
   Button,
@@ -37,7 +44,7 @@ function Manifest({ stop }: { stop: DriverStop }) {
         {stop.orders.map((order) => (
           <li
             key={order.code}
-            className="rounded-md border border-line bg-surface-2 px-3 py-2.5"
+            className="rounded-xl bg-surface-2 px-3.5 py-3 ring-1 ring-line ring-inset"
           >
             <div className="flex items-baseline justify-between gap-3">
               <span className="font-mono text-sm font-semibold text-ink">
@@ -75,87 +82,84 @@ function NextStopCard({
 }) {
   const isPickup = stop.stop_type === 'pickup'
 
+  const Icon = isPickup ? IconPackageUp : IconPackageDown
+
   return (
-    <section
-      className={clsx(
-        'rounded-xl border-2 bg-surface-1 p-5',
-        isPickup ? 'border-st-pickup/40' : 'border-st-delivery/40',
-      )}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <span
-          className={clsx(
-            'inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold',
-            isPickup
-              ? 'border-st-pickup/25 bg-st-pickup/10 text-st-pickup'
-              : 'border-st-delivery/25 bg-st-delivery/10 text-st-delivery',
-          )}
-        >
-          {isPickup ? 'COLLECT' : 'DELIVER'}
+    <section className="overflow-hidden rounded-2xl bg-surface-1 shadow-raised ring-1 ring-line">
+      {/* A band in the leg's colour: from across the cab, this says "load" or "unload". */}
+      <div
+        className={clsx(
+          'flex items-center justify-between gap-3 px-5 py-3',
+          isPickup ? 'bg-st-pickup/10 text-st-pickup' : 'bg-st-delivery/10 text-st-delivery',
+        )}
+      >
+        <span className="inline-flex items-center gap-2 text-sm font-semibold">
+          <Icon size={18} />
+          {isPickup ? 'Collect here' : 'Deliver here'}
         </span>
-        <span className="text-sm text-ink-dim">
+        <span className="text-sm font-medium tabular-nums">
           Stop {stop.sequence + 1} of {trip.stop_count}
         </span>
       </div>
 
-      <h2 className="mt-3 text-xl leading-snug font-semibold text-ink">
-        {stop.place_name}
-      </h2>
-      <p className="mt-1.5 text-base leading-relaxed text-ink-soft">
-        {stop.place_address}
-      </p>
+      <div className="p-5">
+        <h2 className="text-[1.5rem] leading-tight font-semibold tracking-[-0.02em] text-ink">
+          {stop.place_name}
+        </h2>
+        <p className="mt-1.5 text-base leading-relaxed text-ink-soft">{stop.place_address}</p>
 
-      {/* The two things a driver reaches for on arrival. */}
-      <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
-        <a
-          href={mapsHref(stop.place_address)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex h-12 items-center justify-center rounded-md border border-line bg-surface-1 text-sm font-semibold text-ink transition-colors hover:bg-surface-2"
-        >
-          Open in Maps
-        </a>
-        {stop.place_phone ? (
+        {/* The two things a driver reaches for on arrival. */}
+        <div className="mt-4 grid grid-cols-2 gap-2.5">
           <a
-            href={`tel:${stop.place_phone.replace(/\s/g, '')}`}
-            className="flex h-12 items-center justify-center rounded-md border border-line bg-surface-1 text-sm font-semibold text-ink transition-colors hover:bg-surface-2"
+            href={mapsHref(stop.place_address)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-12 items-center justify-center gap-2 rounded-xl border border-line bg-surface-1 text-[0.9375rem] font-semibold text-ink shadow-button transition-colors active:bg-surface-2"
           >
-            Call site
+            <IconNavigate size={18} className="text-brand" />
+            Navigate
           </a>
-        ) : (
-          <span className="flex h-12 items-center justify-center rounded-md border border-line bg-surface-2 text-sm text-ink-dim">
-            No site number
+          {stop.place_phone ? (
+            <a
+              href={`tel:${stop.place_phone.replace(/\s/g, '')}`}
+              className="flex h-12 items-center justify-center gap-2 rounded-xl border border-line bg-surface-1 text-[0.9375rem] font-semibold text-ink shadow-button transition-colors active:bg-surface-2"
+            >
+              <IconPhone size={18} className="text-st-available" />
+              Call site
+            </a>
+          ) : (
+            <span className="flex h-12 items-center justify-center rounded-xl bg-surface-2 text-sm text-ink-dim">
+              No site number
+            </span>
+          )}
+        </div>
+
+        <div className="mt-5 border-t border-line pt-4">
+          <Manifest stop={stop} />
+        </div>
+
+        <div className="mt-4 flex items-center justify-between rounded-xl bg-surface-2 px-4 py-3 text-sm">
+          <span className="text-ink-soft">On board after this stop</span>
+          <span className="tabular-nums">
+            <span className="text-base font-semibold text-ink">{fmtTons(stop.load_after_tons)}</span>
+            <span className="text-ink-dim"> / {fmtTons(trip.truck_capacity_tons)}</span>
           </span>
+        </div>
+
+        <Button
+          variant="primary"
+          size="lg"
+          className="mt-4 h-14 w-full text-base"
+          disabled={completing || !canComplete}
+          onClick={onComplete}
+        >
+          {!completing && <IconCheck size={20} strokeWidth={2.2} />}
+          {completing ? 'Saving…' : isPickup ? 'Mark collected' : 'Mark delivered'}
+        </Button>
+        {!canComplete && (
+          <p className="mt-2 text-center text-sm text-ink-dim">Start the trip first.</p>
         )}
       </div>
-
-      <div className="mt-5 border-t border-line pt-4">
-        <Manifest stop={stop} />
-      </div>
-
-      <p className="mt-4 text-sm text-ink-dim">
-        On board after this stop:{' '}
-        <span className="font-semibold text-ink">{fmtTons(stop.load_after_tons)}</span> of{' '}
-        {fmtTons(trip.truck_capacity_tons)}
-      </p>
-
-      <Button
-        variant="primary"
-        className="mt-4 h-14 w-full text-base"
-        disabled={completing || !canComplete}
-        onClick={onComplete}
-      >
-        {completing
-          ? 'Saving…'
-          : isPickup
-            ? 'Mark collected'
-            : 'Mark delivered'}
-      </Button>
-      {!canComplete && (
-        <p className="mt-2 text-center text-sm text-ink-dim">
-          Start the trip first.
-        </p>
-      )}
     </section>
   )
 }
@@ -174,15 +178,15 @@ function StopList({ trip }: { trip: DriverTrip }) {
           >
             <span
               className={clsx(
-                'mt-0.5 grid size-7 shrink-0 place-items-center rounded-full border-2 text-xs font-semibold',
+                'mt-0.5 grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold',
                 done
-                  ? 'border-st-available bg-st-available text-on-brand'
+                  ? 'bg-st-available text-white'
                   : isNext
-                    ? 'border-brand text-brand'
-                    : 'border-line text-ink-dim',
+                    ? 'text-brand ring-2 ring-brand'
+                    : 'text-ink-dim ring-1 ring-line-strong',
               )}
             >
-              {done ? '✓' : stop.sequence + 1}
+              {done ? <IconCheck size={14} strokeWidth={2.4} /> : stop.sequence + 1}
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-2">
@@ -200,7 +204,7 @@ function StopList({ trip }: { trip: DriverTrip }) {
                     stop.stop_type === 'pickup' ? 'text-st-pickup' : 'text-st-delivery',
                   )}
                 >
-                  {stop.stop_type === 'pickup' ? 'COLLECT' : 'DELIVER'}
+                  {stop.stop_type === 'pickup' ? 'Collect' : 'Deliver'}
                 </span>
               </div>
               <p className="truncate text-xs text-ink-dim">

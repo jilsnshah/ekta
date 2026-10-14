@@ -1,101 +1,166 @@
 @import 'tailwindcss';
 
+/*
+ * Ekta's design tokens. See DESIGN.md for the reasoning; in short: a deep
+ * navy "night" carries the brand, one indigo "signal" marks what can be acted
+ * on, and the status hues are the only other colour in the product.
+ */
 @theme {
   --font-sans:
-    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', ui-sans-serif,
+    'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', ui-sans-serif,
     system-ui, sans-serif;
   --font-mono:
-    ui-monospace, 'SF Mono', 'SFMono-Regular', 'JetBrains Mono', Menlo,
-    monospace;
+    'Geist Mono', ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, monospace;
 
   /* ---------------------------------------------------------------------- *
-   * Type scale. Deliberately short, so every screen draws on the same
-   * handful of sizes and nothing lands at an arbitrary 10px.
+   * Type scale. Short on purpose: every screen draws on these few sizes.
    * ---------------------------------------------------------------------- */
-  --text-label: 0.75rem; /* 12px - table headers, eyebrow labels (uppercase) */
+  --text-label: 0.75rem; /* 12px - field and column labels */
   --text-label--line-height: 1rem;
-  --text-label--letter-spacing: 0.04em;
 
-  --text-xs: 0.8125rem; /* 13px - tertiary detail, never primary content */
+  --text-xs: 0.8125rem; /* 13px - metadata */
   --text-xs--line-height: 1.125rem;
 
   --text-sm: 0.875rem; /* 14px - secondary text, table cells */
   --text-sm--line-height: 1.25rem;
 
-  --text-base: 0.9375rem; /* 15px - body default */
-  --text-base--line-height: 1.375rem;
+  --text-base: 0.9375rem; /* 15px - body */
+  --text-base--line-height: 1.4rem;
 
-  --text-lg: 1.0625rem; /* 17px - panel titles */
+  --text-lg: 1.0625rem; /* 17px - card titles */
   --text-lg--line-height: 1.5rem;
 
-  --text-xl: 1.3125rem; /* 21px - page titles */
-  --text-xl--line-height: 1.75rem;
+  --text-xl: 1.5rem; /* 24px - page titles */
+  --text-xl--line-height: 2rem;
+  --text-xl--letter-spacing: -0.022em;
 
-  --text-2xl: 1.75rem; /* 28px - KPI figures */
-  --text-2xl--line-height: 2rem;
+  --text-2xl: 1.875rem; /* 30px - headline figures */
+  --text-2xl--line-height: 2.25rem;
+  --text-2xl--letter-spacing: -0.03em;
+
+  --text-3xl: 2.375rem; /* 38px - hero figures */
+  --text-3xl--line-height: 2.75rem;
+  --text-3xl--letter-spacing: -0.035em;
 
   /* ---------------------------------------------------------------------- *
-   * Neutrals. A faintly cool grey ramp; surface-1 is pure white so cards
-   * separate from the page without needing a shadow.
+   * Night: the brand surface. Sidebar, sign-in panels, the logo tile.
    * ---------------------------------------------------------------------- */
-  --color-surface-0: oklch(0.978 0.0015 265); /* page background */
-  --color-surface-1: oklch(1 0 0); /* cards, panels, table rows */
-  --color-surface-2: oklch(0.966 0.0025 265); /* inputs, table headers, hover */
-  --color-surface-3: oklch(0.932 0.004 265); /* bar tracks, pressed states */
+  --color-night: oklch(0.185 0.03 268);
+  --color-night-raised: oklch(0.235 0.032 268);
+  --color-night-active: oklch(0.29 0.04 270);
+  --color-night-line: oklch(0.28 0.028 268);
+  --color-on-night: oklch(0.955 0.008 268);
+  --color-on-night-dim: oklch(0.7 0.025 268);
 
-  --color-line: oklch(0.912 0.004 265); /* default hairline */
-  --color-line-strong: oklch(0.86 0.006 265); /* section dividers */
+  /* ---------------------------------------------------------------------- *
+   * Neutrals. A faintly cool ramp. Cards are pure white and lift off the
+   * canvas with a soft shadow rather than a heavier border.
+   * ---------------------------------------------------------------------- */
+  --color-canvas: oklch(0.975 0.0035 265);
+  --color-surface-0: oklch(0.975 0.0035 265); /* alias of canvas */
+  --color-surface-1: oklch(1 0 0);
+  --color-surface-2: oklch(0.965 0.0045 265);
+  --color-surface-3: oklch(0.925 0.006 265);
 
-  --color-ink: oklch(0.255 0.012 265); /* primary text */
-  --color-ink-soft: oklch(0.455 0.012 265); /* secondary text */
-  --color-ink-dim: oklch(0.585 0.011 265); /* labels, tertiary text */
+  --color-line: oklch(0.918 0.006 265);
+  --color-line-strong: oklch(0.855 0.009 265);
+
+  --color-ink: oklch(0.215 0.022 268);
+  --color-ink-soft: oklch(0.445 0.02 268);
+  --color-ink-dim: oklch(0.585 0.016 268);
 
   --color-on-brand: oklch(1 0 0);
 
-  /* Brand: one blue, used only for primary actions, links and focus. */
-  --color-brand: oklch(0.545 0.178 258);
-  --color-brand-hover: oklch(0.492 0.178 258);
-  --color-brand-tint: oklch(0.955 0.022 258);
+  /* The signal. Primary actions, links, selection and focus -- nothing else. */
+  --color-brand: oklch(0.515 0.215 274);
+  --color-brand-hover: oklch(0.455 0.21 274);
+  --color-brand-tint: oklch(0.962 0.022 274);
+  --color-brand-soft: oklch(0.9 0.06 274);
+  --color-brand-glow: oklch(0.72 0.15 274);
 
   /* ---------------------------------------------------------------------- *
-   * Status palette. Each hue is dark enough to pass contrast as text on a
-   * 10% tint of itself, which is how every badge is built.
+   * Status. Each hue passes contrast as text on a 10% tint of itself, which
+   * is how every status pill is built. Chosen to stay clear of the indigo
+   * signal: "moving" is a sky blue, "unloading" a magenta.
    * ---------------------------------------------------------------------- */
-  --color-st-available: oklch(0.525 0.135 157); /* green  - idle, ready */
-  --color-st-assigned: oklch(0.545 0.125 72); /* amber  - booked */
-  --color-st-transit: oklch(0.525 0.165 258); /* blue   - moving */
-  --color-st-pickup: oklch(0.565 0.148 48); /* orange - loading */
-  --color-st-delivery: oklch(0.495 0.185 300); /* violet - unloading */
-  --color-st-delayed: oklch(0.525 0.19 26); /* red    - needs action */
-  --color-st-maint: oklch(0.50 0.012 265); /* grey   - out of service */
-  --color-st-muted: oklch(0.56 0.01 265); /* grey   - closed, cancelled */
+  --color-st-available: oklch(0.53 0.135 158); /* green   - idle, ready, done */
+  --color-st-assigned: oklch(0.525 0.115 66); /* amber   - booked, waiting */
+  --color-st-transit: oklch(0.53 0.135 238); /* sky     - moving */
+  --color-st-pickup: oklch(0.545 0.15 45); /* orange  - loading */
+  --color-st-delivery: oklch(0.52 0.19 342); /* magenta - unloading */
+  --color-st-delayed: oklch(0.53 0.2 25); /* red     - needs action */
+  --color-st-maint: oklch(0.5 0.014 268); /* slate   - out of service */
+  --color-st-muted: oklch(0.57 0.012 268); /* grey    - closed */
+
+  /* ---------------------------------------------------------------------- *
+   * Shape and depth.
+   * ---------------------------------------------------------------------- */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.25rem;
+
+  --shadow-card: 0 1px 2px 0 oklch(0.25 0.03 268 / 0.05);
+  --shadow-raised:
+    0 1px 2px 0 oklch(0.25 0.03 268 / 0.06), 0 6px 20px -6px oklch(0.25 0.03 268 / 0.12);
+  --shadow-overlay:
+    0 2px 6px 0 oklch(0.25 0.03 268 / 0.06), 0 28px 64px -16px oklch(0.2 0.04 268 / 0.32);
+  --shadow-button: 0 1px 1.5px 0 oklch(0.25 0.03 268 / 0.08);
+  --shadow-brand:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.16), 0 1px 2px 0 oklch(0.4 0.2 274 / 0.35);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-fade-up: fade-up 220ms var(--ease-out) both;
+  --animate-fade-in: fade-in 160ms ease-out both;
+  --animate-sheet-up: sheet-up 260ms var(--ease-out) both;
+  --animate-pop: pop 200ms var(--ease-out) both;
+  --animate-slide-in-right: slide-in-right 240ms var(--ease-out) both;
+  --animate-shimmer: shimmer 1.4s linear infinite;
 }
 
 :root {
   color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
 body,
 #root {
-  height: 100%;
+  min-height: 100%;
 }
 
 body {
   margin: 0;
-  background: var(--color-surface-0);
+  background: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: var(--text-base--line-height);
+  font-feature-settings: 'ss01', 'cv11';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Numbers in tables must line up, so default every figure to tabular. */
+h1,
+h2,
+h3 {
+  letter-spacing: -0.015em;
+}
+
+/* Numbers in tables must line up, so every figure defaults to tabular. */
 .font-mono,
 [class*='tabular-nums'] {
   font-variant-numeric: tabular-nums;
+}
+.font-mono {
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: var(--color-brand-soft);
 }
 
 /* Scrollbars that do not shout inside dense panels. */
@@ -114,43 +179,163 @@ body {
   background-clip: content-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.87 0.006 265);
+  background: var(--color-line-strong);
   background-clip: content-box;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* One focus treatment everywhere, applied on keyboard navigation only. */
+/* One focus treatment everywhere, on keyboard navigation only. */
 :focus-visible {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
   border-radius: 0.375rem;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ------------------------------------------------------------------------ *
+ * Utilities
+ * ------------------------------------------------------------------------ */
+
+/* The resting surface: white, a hairline, and just enough shadow to lift. */
 @utility card {
   background: var(--color-surface-1);
   border: 1px solid var(--color-line);
-  border-radius: 0.625rem;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
 }
 
-/* The eyebrow label used above every figure and in every table header. */
+/* Field and column labels: small, dim, sentence case. Never shouted. */
 @utility label {
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
-  letter-spacing: var(--text-label--letter-spacing);
-  text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--color-ink-dim);
+}
+
+/* A row of chips or tabs that scrolls sideways instead of wrapping, with
+   its edges faded so it is obvious there is more. */
+@utility scroller-x {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility fade-x {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 12px,
+    #000 calc(100% - 24px),
+    transparent 100%
+  );
+}
+
+/* Space for the iPhone home indicator under fixed bottom bars. */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-2) 0%,
+    var(--color-surface-3) 50%,
+    var(--color-surface-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+  border-radius: var(--radius-md);
+}
+
+/* The faint route-grid behind sign-in panels and brand moments. */
+@utility night-grid {
+  background-color: var(--color-night);
+  background-image:
+    radial-gradient(
+      120% 80% at 100% 0%,
+      oklch(0.4 0.16 274 / 0.45) 0%,
+      transparent 55%
+    ),
+    radial-gradient(90% 70% at 0% 100%, oklch(0.35 0.1 238 / 0.35) 0%, transparent 60%),
+    linear-gradient(oklch(1 0 0 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 0.035) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    32px 32px,
+    32px 32px;
 }
 
 @keyframes fade-up {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
   }
 }

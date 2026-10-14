@@ -18,27 +18,27 @@ export const STAGE_META: Record<
 > = {
   placed: {
     label: 'Awaiting truck',
-    chip: 'bg-st-assigned/10 text-st-assigned border-st-assigned/20',
+    chip: 'bg-st-assigned/10 text-st-assigned',
     dot: 'bg-st-assigned',
   },
   scheduled: {
     label: 'Truck arranged',
-    chip: 'bg-st-transit/10 text-st-transit border-st-transit/20',
+    chip: 'bg-st-transit/10 text-st-transit',
     dot: 'bg-st-transit',
   },
   in_transit: {
     label: 'In transit',
-    chip: 'bg-st-pickup/10 text-st-pickup border-st-pickup/20',
+    chip: 'bg-st-pickup/10 text-st-pickup',
     dot: 'bg-st-pickup',
   },
   delivered: {
     label: 'Delivered',
-    chip: 'bg-st-available/10 text-st-available border-st-available/20',
+    chip: 'bg-st-available/10 text-st-available',
     dot: 'bg-st-available',
   },
   cancelled: {
     label: 'Cancelled',
-    chip: 'bg-st-muted/10 text-st-muted border-st-muted/20',
+    chip: 'bg-st-muted/10 text-st-muted',
     dot: 'bg-st-muted',
   },
 }

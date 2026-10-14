@@ -120,6 +120,8 @@ try {
     ['DriverDetail', '/drivers/1', 'DRV-0001'],
     ['Alerts', '/alerts', 'Test alert title'],
     ['Places', '/places', 'Kadi Godown'],
+    ['Customers', '/customers', 'Hemant Sutaria'],
+    ['CustomerDetail', '/customers/7', 'Shakti Steel Works'],
   ]
 
   // The billing-party portal, signed in as a party.

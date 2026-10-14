@@ -494,6 +494,37 @@ export const DRIVER_HISTORY = [
  * whose key is missing here renders a spinner, which the marker assertion in
  * render-check.mjs then fails on.
  */
+/* ------------------------------ customers -------------------------------- */
+
+export const COMPANY_ADMIN = {
+  id: 11,
+  name: 'Shakti Steel Works',
+  gst_number: '24AABCS1234Z1',
+  contact_person: 'Hemant Sutaria',
+  address: null,
+  order_count: 3,
+  customer_id: 7,
+  customer_name: 'Hemant Sutaria',
+  customer_phone: '+91 98250 00001',
+}
+
+export const CUSTOMER = {
+  id: 7,
+  phone: '+91 98250 00001',
+  full_name: 'Hemant Sutaria',
+  is_active: true,
+  created_at: '2026-10-01T08:00:00',
+  last_login_at: null,
+  company_names: ['Shakti Steel Works'],
+  company_count: 1,
+  order_count: 3,
+  open_order_count: 2,
+  address_count: 2,
+  last_order_at: '2026-10-13T08:00:00',
+}
+
+export const CUSTOMER_DETAIL = { ...CUSTOMER, companies: [COMPANY_ADMIN] }
+
 /* ---------------------------- page envelopes ------------------------------ */
 
 /**
@@ -544,6 +575,16 @@ export function seedEntries() {
     pagedEntry(['orders'], [ORDER, UNASSIGNED_ORDER]),
     pagedEntry(['trips'], [TRIP_BRIEF]),
     pagedEntry(['places'], ADMIN_PLACES),
+    pagedEntry(['customers'], [CUSTOMER]),
+    [['customer', 7], CUSTOMER_DETAIL],
+    pagedEntry(['orders', 'customer', 7], [ORDER], {
+      filters: { customer_id: 7, sort: 'created_at', descending: true },
+      pageSize: 10,
+    }),
+    pagedEntry(['places', 'customer', 7], SAVED_PLACES, {
+      filters: { account_id: 7, only_account: true },
+      pageSize: 8,
+    }),
     pagedEntry(['truck-trips', 1], [TRIP_BRIEF], { pageSize: 10 }),
     pagedEntry(['driver-trips', 1], [TRIP_BRIEF], { pageSize: 10 }),
     // Alerts start with acknowledged ones hidden, so that is in the print.

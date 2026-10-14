@@ -4,7 +4,8 @@ import { usePaged } from '../lib/usePaged'
 import { api, ApiError } from '../lib/api'
 import { fmtTons } from '../lib/format'
 import type { Truck } from '../lib/types'
-import { MetaItem, PageHeader } from '../components/shell'
+import { IconPlus } from '../components/icons'
+import { MetaItem, PageBody, PageHeader } from '../components/shell'
 import { useToast } from '../components/toast'
 import {
   Button,
@@ -202,7 +203,7 @@ export function TruckForm({
         </div>
 
         <div className="border-t border-line pt-5">
-          <p className="label mb-3">Vehicle details</p>
+          <p className="mb-4 text-sm font-semibold text-ink">Vehicle details</p>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Make">
               <input
@@ -325,13 +326,13 @@ export default function Trucks() {
   )
 
   return (
-    <div className="p-6">
+    <PageBody>
       <PageHeader
         title="Trucks"
         subtitle="The fleet, its capacity and who is driving each vehicle."
         meta={
           <>
-            <MetaItem label="Fleet">{fleet?.total_trucks ?? 0} trucks</MetaItem>
+            <MetaItem label="Fleet">{fleet?.total_trucks ?? 0}</MetaItem>
             {fleet && (
               <MetaItem label="Loaded">
                 {fmtTons(fleet.total_load_tons)} of {fmtTons(fleet.total_capacity_tons)}
@@ -346,13 +347,14 @@ export default function Trucks() {
         }
         actions={
           <Button variant="primary" onClick={() => setAdding(true)}>
+            <IconPlus size={17} />
             Add truck
           </Button>
         }
       />
 
       <Panel bodyClassName="overflow-visible">
-        <div className="border-b border-line p-4">
+        <div className="border-b border-line p-4 sm:px-5">
           <TruckFilterBar
             value={filter}
             onChange={setFilter}
@@ -382,6 +384,6 @@ export default function Trucks() {
       </Panel>
 
       {adding && <TruckForm open={adding} onClose={() => setAdding(false)} />}
-    </div>
+    </PageBody>
   )
 }

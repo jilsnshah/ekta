@@ -119,6 +119,10 @@ export interface OrderBrief {
 export interface Order extends OrderBrief {
   placed_by_phone: string | null
   company_id: number | null
+  /** The customer the order belongs to, whoever raised it. */
+  customer_id: number | null
+  customer_name: string | null
+  customer_phone: string | null
   pickup_phone: string | null
   pickup_address: string
   drop_phone: string | null
@@ -295,7 +299,7 @@ export interface AssignBoard {
 }
 
 export interface SearchHit {
-  kind: 'truck' | 'driver' | 'order' | 'billing_party' | 'trip'
+  kind: 'truck' | 'driver' | 'order' | 'billing_party' | 'trip' | 'customer'
   id: number
   label: string
   sublabel: string | null
@@ -366,6 +370,8 @@ export interface PortalOrderBrief {
   truck_registration: string | null
   stage: OrderStage
   stage_detail: string
+  /** The control room booked it for them, rather than they placing it. */
+  booked_by_us: boolean
 }
 
 export interface PortalOrder extends PortalOrderBrief {
@@ -464,4 +470,40 @@ export interface OtpRequestResult {
   phone: string
   sent: boolean
   development_hint: string | null
+}
+
+/* ------------------------------ customers -------------------------------- */
+
+/** A billing-party account as the control room sees it. */
+export interface Customer {
+  id: number
+  phone: string
+  full_name: string | null
+  is_active: boolean
+  created_at: string | null
+  /** Null until the customer has signed in to the portal themselves. */
+  last_login_at: string | null
+  company_names: string[]
+  company_count: number
+  order_count: number
+  open_order_count: number
+  address_count: number
+  last_order_at: string | null
+}
+
+/** A company, with the customer it belongs to. */
+export interface CompanyAdmin {
+  id: number
+  name: string
+  gst_number: string | null
+  contact_person: string | null
+  address: string | null
+  order_count: number
+  customer_id: number
+  customer_name: string | null
+  customer_phone: string
+}
+
+export interface CustomerDetail extends Customer {
+  companies: CompanyAdmin[]
 }

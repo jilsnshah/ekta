@@ -178,6 +178,15 @@ export default function PortalOrderDetail() {
         subtitle={`${o.material} · ${fmtTons(o.quantity_tons)} · billed to ${o.company_name}`}
       />
 
+      {o.booked_by_us && (
+        <div className="mb-4">
+          <Callout tone="info">
+            Our team booked this for you. You can follow it here just like an order you place
+            yourself.
+          </Callout>
+        </div>
+      )}
+
       <div className="space-y-4">
         <Panel title="Progress" description={o.stage_detail}>
           <div className="p-4 sm:p-5">

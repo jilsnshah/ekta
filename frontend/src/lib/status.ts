@@ -1,8 +1,8 @@
 import type { DriverStatus, OrderStatus, TripStatus, TruckStatus } from './types'
 
 /**
- * Every status chip in the app is built the same way: the hue at full strength
- * for the text and the dot, a 10% tint behind it, a 20% border.
+ * Every status pill in the app is built the same way: the hue at full
+ * strength for the text and the dot, a 10% tint behind it.
  *
  * The class strings are written out in full rather than composed at runtime,
  * because Tailwind generates utilities by scanning source text -- a template
@@ -20,42 +20,42 @@ export interface StatusMeta {
 
 const HUE = {
   available: {
-    chip: 'bg-st-available/10 text-st-available border-st-available/20',
+    chip: 'bg-st-available/10 text-st-available',
     dot: 'bg-st-available',
     text: 'text-st-available',
   },
   assigned: {
-    chip: 'bg-st-assigned/10 text-st-assigned border-st-assigned/20',
+    chip: 'bg-st-assigned/10 text-st-assigned',
     dot: 'bg-st-assigned',
     text: 'text-st-assigned',
   },
   transit: {
-    chip: 'bg-st-transit/10 text-st-transit border-st-transit/20',
+    chip: 'bg-st-transit/10 text-st-transit',
     dot: 'bg-st-transit',
     text: 'text-st-transit',
   },
   pickup: {
-    chip: 'bg-st-pickup/10 text-st-pickup border-st-pickup/20',
+    chip: 'bg-st-pickup/10 text-st-pickup',
     dot: 'bg-st-pickup',
     text: 'text-st-pickup',
   },
   delivery: {
-    chip: 'bg-st-delivery/10 text-st-delivery border-st-delivery/20',
+    chip: 'bg-st-delivery/10 text-st-delivery',
     dot: 'bg-st-delivery',
     text: 'text-st-delivery',
   },
   delayed: {
-    chip: 'bg-st-delayed/10 text-st-delayed border-st-delayed/20',
+    chip: 'bg-st-delayed/10 text-st-delayed',
     dot: 'bg-st-delayed',
     text: 'text-st-delayed',
   },
   maint: {
-    chip: 'bg-st-maint/10 text-st-maint border-st-maint/20',
+    chip: 'bg-st-maint/10 text-st-maint',
     dot: 'bg-st-maint',
     text: 'text-st-maint',
   },
   muted: {
-    chip: 'bg-st-muted/10 text-st-muted border-st-muted/20',
+    chip: 'bg-st-muted/10 text-st-muted',
     dot: 'bg-st-muted',
     text: 'text-st-muted',
   },
@@ -166,5 +166,6 @@ export const STOP_TYPE: Record<'pickup' | 'delivery', StatusMeta> = {
 export function loadTone(percent: number): { bar: string; text: string } {
   if (percent >= 99.5) return { bar: 'bg-st-delayed', text: 'text-st-delayed' }
   if (percent >= 85) return { bar: 'bg-st-pickup', text: 'text-st-pickup' }
-  return { bar: 'bg-st-transit', text: 'text-ink' }
+  // Ordinary load is not a status, so it is drawn in ink, not a hue.
+  return { bar: 'bg-ink-soft', text: 'text-ink' }
 }

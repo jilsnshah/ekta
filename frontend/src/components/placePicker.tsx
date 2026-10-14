@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { useMemo, useState } from 'react'
 import type { SavedPlace } from '../lib/types'
+import { IconCheck, IconChevronLeft, IconPin, IconPlus } from './icons'
 import { Button, Field, SearchInput, inputClass, textareaClass } from './ui'
 
 /** Above this many saved places, scrolling stops being a way to find one. */
@@ -91,13 +92,15 @@ export function PlacePicker({
     <div className="space-y-4">
       {saved.length > 0 && (
         <button
+          type="button"
           onClick={() => {
             onChange(EMPTY_PLACE)
             setMode('saved')
           }}
-          className="text-sm font-medium text-brand hover:underline"
+          className="-ml-1 inline-flex items-center gap-1 rounded-md px-1 py-1 text-sm font-medium text-brand hover:bg-brand-tint"
         >
-          ← Choose a saved address instead
+          <IconChevronLeft size={15} />
+          Choose a saved address instead
         </button>
       )}
 
@@ -124,7 +127,8 @@ export function PlacePicker({
 
       <Field
         label="Phone number at this place"
-        hint="Optional. The driver will call this number on arrival."
+        optional
+        hint="The driver calls this number on arrival."
       >
         <input
           id={`${idPrefix}-phone`}
@@ -191,10 +195,12 @@ function SavedList({
   return (
     <div className="space-y-3">
       <button
+        type="button"
         onClick={onNew}
-        className="h-11 w-full rounded-md border border-dashed border-line-strong text-sm font-semibold text-brand transition-colors hover:bg-surface-2"
+        className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong text-sm font-semibold text-brand transition-colors hover:border-brand/50 hover:bg-brand-tint"
       >
-        + Enter a new address
+        <IconPlus size={16} />
+        Enter a new address
       </button>
 
       {showSearch && (
@@ -217,36 +223,48 @@ function SavedList({
           Nothing matches “{search}”. Clear the search, or enter a new address.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2 sm:max-h-[22rem] sm:overflow-y-auto sm:overscroll-contain sm:pr-1">
           {shown.map((place) => {
             const active = selectedId === place.id
             return (
               <li key={place.id}>
                 <button
+                  type="button"
                   onClick={() => onChoose(place)}
                   aria-pressed={active}
                   className={clsx(
-                    'w-full rounded-lg border p-4 text-left transition-colors',
+                    'flex w-full items-start gap-3 rounded-xl border p-3.5 text-left transition-[border-color,background-color,box-shadow]',
                     active
-                      ? 'border-brand bg-brand-tint ring-2 ring-brand/20'
-                      : 'border-line bg-surface-1 hover:bg-surface-2',
+                      ? 'border-brand/50 bg-brand-tint ring-2 ring-brand/15'
+                      : 'border-line bg-surface-1 hover:border-line-strong hover:bg-surface-2/60',
                   )}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-base font-semibold text-ink">
+                  <span
+                    className={clsx(
+                      'mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors',
+                      active ? 'border-brand bg-brand text-on-brand' : 'border-line-strong bg-surface-1',
+                    )}
+                  >
+                    {active && <IconCheck size={12} strokeWidth={2.4} />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[0.9375rem] font-semibold text-ink">
                       {place.label}
                     </span>
-                    {active && (
-                      <span className="shrink-0 text-sm font-semibold text-brand">
-                        Selected
+                    <span className="mt-0.5 block text-sm leading-relaxed text-ink-soft">
+                      {place.address}
+                    </span>
+                    {place.phone && (
+                      <span className="mt-0.5 block font-mono text-xs text-ink-dim">
+                        {place.phone}
                       </span>
                     )}
-                  </div>
-                  <p className="mt-1 text-sm leading-relaxed text-ink-soft">
-                    {place.address}
-                  </p>
-                  {place.phone && (
-                    <p className="mt-0.5 text-sm text-ink-dim">{place.phone}</p>
+                  </span>
+                  {place.owner && place.owner !== 'Control room' && (
+                    <span className="hidden shrink-0 items-center gap-1 text-xs text-ink-dim sm:inline-flex">
+                      <IconPin size={12} />
+                      {place.owner}
+                    </span>
                   )}
                 </button>
               </li>
@@ -274,7 +292,7 @@ export function PlaceSummary({
         <p className="label">{title}</p>
         <p className="mt-1 text-base font-semibold text-ink">{value.label}</p>
         <p className="mt-0.5 text-sm leading-relaxed text-ink-soft">{value.address}</p>
-        {value.phone && <p className="text-sm text-ink-dim">{value.phone}</p>}
+        {value.phone && <p className="mt-0.5 font-mono text-xs text-ink-dim">{value.phone}</p>}
       </div>
       <Button size="sm" variant="ghost" onClick={onEdit}>
         Change

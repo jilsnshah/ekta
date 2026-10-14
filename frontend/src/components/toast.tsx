@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { IconAlert, IconCheck, IconClose, IconInfo } from './icons'
 
 type Tone = 'success' | 'error' | 'info'
 
@@ -67,32 +68,43 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
       {createPortal(
-        <div className="pointer-events-none fixed right-4 bottom-4 z-[60] flex w-[22rem] flex-col gap-2 sm:right-6 sm:bottom-6">
-          {toasts.map((toast) => (
-            <div
-              key={toast.id}
-              role="status"
-              style={{ animation: 'fade-up 160ms ease-out' }}
-              className="pointer-events-auto flex gap-3 overflow-hidden rounded-lg border border-line bg-surface-1
-                         shadow-[0_12px_32px_-8px_rgb(15_23_42/0.25)]"
-            >
-              {/* A colour bar carries the tone, so the text stays legible. */}
-              <span className={clsx('w-1 shrink-0', ACCENT[toast.tone])} />
-              <div className="min-w-0 flex-1 py-3 pr-2">
-                <p className="text-sm font-semibold text-ink">{toast.title}</p>
-                {toast.body && (
-                  <p className="mt-0.5 text-xs leading-relaxed text-ink-soft">{toast.body}</p>
-                )}
-              </div>
-              <button
-                onClick={() => dismiss(toast.id)}
-                aria-label="Dismiss"
-                className="mt-2 mr-2 grid size-6 shrink-0 place-items-center self-start rounded text-ink-dim hover:bg-surface-2 hover:text-ink"
+        // Top of the screen on a phone, where no tab bar or sticky action can
+        // cover it; bottom right on a desk, out of the way of the work.
+        <div className="pointer-events-none fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[70] flex flex-col gap-2 sm:inset-x-auto sm:top-auto sm:right-6 sm:bottom-6 sm:w-[24rem]">
+          {toasts.map((toast) => {
+            const Icon = toast.tone === 'error' ? IconAlert : toast.tone === 'success' ? IconCheck : IconInfo
+            return (
+              <div
+                key={toast.id}
+                role="status"
+                className="pointer-events-auto flex animate-pop items-start gap-3 rounded-xl bg-night px-4 py-3.5 text-on-night shadow-overlay ring-1 ring-white/10"
               >
-                ×
-              </button>
-            </div>
-          ))}
+                <span
+                  className={clsx(
+                    'mt-px grid size-6 shrink-0 place-items-center rounded-full',
+                    ACCENT[toast.tone],
+                  )}
+                >
+                  <Icon size={14} strokeWidth={2.2} className="text-white" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">{toast.title}</p>
+                  {toast.body && (
+                    <p className="mt-0.5 text-[0.8125rem] leading-relaxed text-on-night-dim">
+                      {toast.body}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => dismiss(toast.id)}
+                  aria-label="Dismiss"
+                  className="-mt-0.5 -mr-1.5 grid size-7 shrink-0 place-items-center rounded-md text-on-night-dim hover:bg-white/10 hover:text-on-night"
+                >
+                  <IconClose size={14} />
+                </button>
+              </div>
+            )
+          })}
         </div>,
         document.body,
       )}

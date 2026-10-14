@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ApiError, api } from '../../lib/api'
 import { usePaged } from '../../lib/usePaged'
 import type { SavedPlace } from '../../lib/types'
+import { IconEdit, IconPin, IconPlus, IconTrash } from '../../components/icons'
 import { PortalPageHeader } from '../../components/portalShell'
 import { useToast } from '../../components/toast'
 import {
@@ -10,6 +11,7 @@ import {
   Callout,
   EmptyState,
   Field,
+  IconButton,
   Modal,
   Pagination,
   Panel,
@@ -158,6 +160,7 @@ export default function PortalAddresses() {
         subtitle="Your godowns and delivery points, kept so you do not retype them."
         actions={
           <Button variant="primary" onClick={() => setAdding(true)}>
+            <IconPlus size={17} />
             Add address
           </Button>
         }
@@ -204,34 +207,39 @@ export default function PortalAddresses() {
           )}
           <div className="grid gap-4 sm:grid-cols-2">
             {list.map((place) => (
-              <div key={place.id} className="card p-5">
-                <h2 className="text-base font-semibold text-ink">{place.label}</h2>
-                <p className="mt-1 text-sm leading-relaxed text-ink-soft">
-                  {place.address}
-                </p>
-                {place.phone && (
-                  <a
-                    href={`tel:${place.phone.replace(/\s/g, '')}`}
-                    className="mt-1 inline-block text-sm font-medium text-brand hover:underline"
-                  >
-                    {place.phone}
-                  </a>
-                )}
-                <p className="mt-2 text-xs text-ink-dim">
-                  Used on {place.use_count} order{place.use_count === 1 ? '' : 's'}
-                </p>
-                <div className="mt-4 flex gap-2 border-t border-line pt-4">
-                  <Button size="sm" onClick={() => setEditing(place)}>
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
+              <div key={place.id} className="card flex items-start gap-3.5 p-4 sm:p-5">
+                <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-surface-2 text-ink-soft">
+                  <IconPin size={17} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-[0.9375rem] font-semibold text-ink">{place.label}</h2>
+                  <p className="mt-0.5 text-sm leading-relaxed text-ink-soft">{place.address}</p>
+                  <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-dim">
+                    {place.phone && (
+                      <a
+                        href={`tel:${place.phone.replace(/\s/g, '')}`}
+                        className="font-mono text-ink-soft hover:text-brand"
+                      >
+                        {place.phone}
+                      </a>
+                    )}
+                    <span>
+                      Used on {place.use_count} order{place.use_count === 1 ? '' : 's'}
+                    </span>
+                  </p>
+                </div>
+                <div className="-mt-1 -mr-1.5 flex shrink-0">
+                  <IconButton label={`Edit ${place.label}`} onClick={() => setEditing(place)}>
+                    <IconEdit size={16} />
+                  </IconButton>
+                  <IconButton
+                    label={`Remove ${place.label}`}
                     disabled={remove.isPending}
                     onClick={() => remove.mutate(place.id)}
+                    className="hover:text-st-delayed"
                   >
-                    Remove
-                  </Button>
+                    <IconTrash size={16} />
+                  </IconButton>
                 </div>
               </div>
             ))}
