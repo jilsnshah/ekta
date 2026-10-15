@@ -11,10 +11,12 @@ services:
     name: ekta
     runtime: docker
     plan: free
-    # Ohio, to sit beside the Neon project in aws-us-east-2. Putting the
-    # service and the database in different regions adds a round trip to
-    # every query.
-    region: ohio
+    # Singapore, beside the Neon project in aws-ap-southeast-1, and nearest
+    # the operation's own users. Co-location is not a nicety: these endpoints
+    # issue dozens of queries each, so a cross-region hop multiplies. Measured
+    # on this service, moving the database into the same region took the
+    # assignment board from 32s to 0.8s.
+    region: singapore
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /api/system/health
