@@ -10,7 +10,7 @@ only thing that decides whether an assignment is legal.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List, Sequence
+from typing import Iterable, List, Optional, Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -76,8 +76,11 @@ def load_bearing_orders(db: Session, truck_id: int) -> List[TransportOrder]:
     return list(db.scalars(stmt))
 
 
-def snapshot(db: Session, truck: Truck) -> CapacitySnapshot:
-    orders = load_bearing_orders(db, truck.id)
+def snapshot(
+    db: Session, truck: Truck, orders: Optional[List[TransportOrder]] = None
+) -> CapacitySnapshot:
+    """`orders` lets a caller that already fetched them avoid a second query."""
+    orders = load_bearing_orders(db, truck.id) if orders is None else orders
     load = round(sum(o.quantity_tons for o in orders), 3)
     return CapacitySnapshot(
         truck_id=truck.id,

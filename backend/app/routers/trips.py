@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .. import schemas, serializers
 from ..database import get_db
@@ -83,6 +83,18 @@ def list_trips(
                 )
             )
         )
+
+    # Eager-loaded: the serializer reads each row's related records, which
+    # lazily would be a query per row. selectinload issues one extra query per
+    # relationship for the whole page instead, so the cost follows the number
+    # of relationships rather than the number of rows.
+    stmt = stmt.options(
+        selectinload(Trip.truck),
+        selectinload(Trip.driver),
+        # trip_brief counts these, so without them it is two more queries a row.
+        selectinload(Trip.orders),
+        selectinload(Trip.stops),
+    )
 
     rows, total = paginate(db, stmt, page)
     return as_page([serializers.trip_brief(t) for t in rows], total, page)

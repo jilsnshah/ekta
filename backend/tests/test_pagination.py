@@ -448,3 +448,57 @@ def test_the_board_sorts_the_backlog_by_pickup_place(client, auth, world, make_o
         client.get("/api/assignment/board?order_sort=nonsense", headers=auth).status_code
         == 422
     )
+
+
+# --------------------------------------------------------------------------- #
+# Batched list endpoints
+#
+# The list endpoints prefetch each page's related records and hand them to the
+# serializers, while the single-record endpoints let the serializers fetch
+# their own. The two paths must produce the same document, or a list would
+# quietly disagree with the page it links to.
+# --------------------------------------------------------------------------- #
+def test_a_truck_reads_the_same_in_the_list_as_on_its_own(client, auth, world, make_order):
+    order = make_order(6.0)
+    client.post(
+        "/api/assignment/assign",
+        headers=auth,
+        json={"truck_id": world["truck"].id, "order_ids": [order.id]},
+    )
+
+    listed = client.get("/api/trucks?page_size=25", headers=auth).json()["items"]
+    row = next(t for t in listed if t["id"] == world["truck"].id)
+    alone = client.get(f"/api/trucks/{world['truck'].id}", headers=auth).json()
+    assert row == alone
+
+
+def test_a_driver_reads_the_same_in_the_list_as_on_their_own(
+    client, auth, world, make_order
+):
+    order = make_order(5.0)
+    client.post(
+        "/api/assignment/assign",
+        headers=auth,
+        json={"truck_id": world["truck"].id, "order_ids": [order.id]},
+    )
+
+    listed = client.get("/api/drivers?page_size=25", headers=auth).json()["items"]
+    row = next(d for d in listed if d["id"] == world["driver"].id)
+    alone = client.get(f"/api/drivers/{world['driver'].id}", headers=auth).json()
+    assert row == alone
+
+
+def test_the_board_reads_trucks_the_same_as_the_truck_list(client, auth, world, make_order):
+    make_order(4.0)
+    board = client.get("/api/assignment/board", headers=auth).json()
+    listed = {t["id"]: t for t in client.get("/api/trucks?page_size=200", headers=auth).json()["items"]}
+    for truck in board["trucks"]["items"]:
+        assert truck == listed[truck["id"]], truck["registration_number"]
+
+
+def test_an_order_reads_the_same_in_the_list_as_on_its_own(client, auth, world, make_order):
+    order = make_order(7.0)
+    listed = client.get("/api/orders?page_size=25", headers=auth).json()["items"]
+    row = next(o for o in listed if o["id"] == order.id)
+    alone = client.get(f"/api/orders/{order.id}", headers=auth).json()
+    assert row == alone

@@ -44,20 +44,19 @@ def list_customers(
     search: Optional[str] = None,
     signed_in: Optional[bool] = None,
 ):
-    """Every customer, most recently active first.
+    """Every customer, newest first.
 
     Search matches the person, the number or any of their companies, in SQL.
     ``signed_in=false`` finds the ones the control room added who have never
     opened the portal.
     """
-    last_order = (
-        select(func.max(TransportOrder.created_at))
-        .where(customer_service.orders_of(PartyAccount.id))
-        .correlate(PartyAccount)
-        .scalar_subquery()
-    )
+    # Ordered by signup, newest first. Deliberately not by "last order",
+    # which is a derived value: ordering by it forces the database to compute
+    # every customer's order history before it can sort, which at 20,000
+    # customers over 200,000 orders took five minutes. The last-order date is
+    # still shown -- it is just computed for the page, not sorted on.
     stmt = select(PartyAccount).order_by(
-        func.coalesce(last_order, PartyAccount.created_at).desc(), PartyAccount.id.desc()
+        PartyAccount.created_at.desc(), PartyAccount.id.desc()
     )
 
     if search:

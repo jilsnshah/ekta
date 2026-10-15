@@ -36,3 +36,29 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def ensure_indexes() -> list:
+    """Create any index the models declare that the database is missing.
+
+    ``Base.metadata.create_all`` only creates whole tables: an index added to
+    a model that already has a table is simply never created, which is silent
+    and only shows up later as a slow query. This project has no migration
+    tool, so the gap is closed here instead -- it runs on every boot, creates
+    only what is absent, and returns what it added.
+
+    Note for a large table: this takes a brief lock. Postgres can build an
+    index CONCURRENTLY without one, but that cannot run inside a transaction,
+    so it is a deliberate manual step rather than something done at startup.
+    """
+    created = []
+    for table in Base.metadata.sorted_tables:
+        for index in table.indexes:
+            try:
+                index.create(bind=engine, checkfirst=True)
+            except Exception:
+                # A concurrent boot may have just created it; the next call
+                # finds it present.
+                continue
+            created.append(index.name)
+    return created

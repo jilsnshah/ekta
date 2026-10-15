@@ -24,6 +24,10 @@ from .models import (
 from .portal_security import display_phone
 from .services import capacity, trips as trip_service
 
+#: Distinguishes "caller did not prefetch this" from "there genuinely is none".
+_UNSET = object()
+
+
 
 def order_brief(order: TransportOrder) -> schemas.OrderBrief:
     return schemas.OrderBrief(
@@ -81,17 +85,29 @@ def driver_brief(driver: Driver) -> schemas.DriverBrief:
     return schemas.DriverBrief.model_validate(driver)
 
 
-def driver_out(db: Session, driver: Driver) -> schemas.DriverOut:
+def driver_out(
+    db: Session,
+    driver: Driver,
+    *,
+    active_trip=_UNSET,
+    completed_trips=_UNSET,
+) -> schemas.DriverOut:
+    """One driver. The keyword arguments let a list endpoint prefetch both
+    facts for its whole page rather than querying them per driver."""
     truck = driver.truck
-    active = trip_service.active_trip_for_truck(db, truck.id) if truck else None
-    completed = (
-        db.scalar(
-            select(func.count(Trip.id))
-            .where(Trip.driver_id == driver.id)
-            .where(Trip.status == TripStatus.COMPLETED.value)
+    if active_trip is _UNSET:
+        active_trip = trip_service.active_trip_for_truck(db, truck.id) if truck else None
+    active = active_trip
+    if completed_trips is _UNSET:
+        completed_trips = (
+            db.scalar(
+                select(func.count(Trip.id))
+                .where(Trip.driver_id == driver.id)
+                .where(Trip.status == TripStatus.COMPLETED.value)
+            )
+            or 0
         )
-        or 0
-    )
+    completed = completed_trips
     return schemas.DriverOut(
         id=driver.id,
         code=driver.code,
@@ -109,10 +125,25 @@ def driver_out(db: Session, driver: Driver) -> schemas.DriverOut:
     )
 
 
-def truck_out(db: Session, truck: Truck) -> schemas.TruckOut:
-    snap = capacity.snapshot(db, truck)
-    orders = capacity.load_bearing_orders(db, truck.id)
-    trip = db.get(Trip, truck.current_trip_id) if truck.current_trip_id else None
+def truck_out(
+    db: Session,
+    truck: Truck,
+    *,
+    orders=_UNSET,
+    trip=_UNSET,
+) -> schemas.TruckOut:
+    """One truck.
+
+    A list endpoint prefetches `orders` and `trip` for its whole page and
+    passes them in; on its own this fetches them per truck, which is fine for
+    a single record but a query per row for a page.
+    """
+    if orders is _UNSET:
+        orders = capacity.load_bearing_orders(db, truck.id)
+    if trip is _UNSET:
+        trip = db.get(Trip, truck.current_trip_id) if truck.current_trip_id else None
+    # snapshot would otherwise re-run the same order query.
+    snap = capacity.snapshot(db, truck, orders=orders)
     nxt: Optional[TripStop] = trip_service.next_stop(trip) if trip else None
     pending = (
         [s for s in trip.stops if s.status != StopStatus.COMPLETED.value] if trip else []

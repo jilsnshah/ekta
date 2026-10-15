@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .config import get_settings
-from .database import Base, SessionLocal, engine, get_db
+from .database import Base, SessionLocal, engine, ensure_indexes, get_db
 from .models import Truck
 from .routers import (
     alerts,
@@ -77,6 +77,12 @@ def _scan_once() -> list:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+
+    # create_all does not touch a table that already exists, so an index added
+    # to a model later would never reach a deployed database.
+    added = ensure_indexes()
+    if added:
+        log.info("Created %d missing index(es): %s", len(added), ", ".join(added))
 
     # Seed on an empty database so a fresh checkout boots with the full demo
     # fleet instead of an empty dashboard.

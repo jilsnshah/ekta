@@ -168,7 +168,10 @@ class PartyAccount(Base):
     full_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # Indexed because the customer list is ordered by it.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), index=True
+    )
 
     companies: Mapped[List["Company"]] = relationship(
         back_populates="account", cascade="all, delete-orphan"
@@ -244,7 +247,7 @@ class Driver(Base):
     status: Mapped[str] = mapped_column(
         String(24), nullable=False, default=DriverStatus.AVAILABLE.value, index=True
     )
-    home_city: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    home_city: Mapped[Optional[str]] = mapped_column(String(80), nullable=True, index=True)
     #: Set when the driver signs in to the driver app.
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
@@ -265,7 +268,7 @@ class Truck(Base):
     registration_number: Mapped[str] = mapped_column(
         String(24), unique=True, nullable=False, index=True
     )
-    capacity_tons: Mapped[float] = mapped_column(Float, nullable=False)
+    capacity_tons: Mapped[float] = mapped_column(Float, nullable=False, index=True)
     status: Mapped[str] = mapped_column(
         String(24), nullable=False, default=TruckStatus.AVAILABLE.value, index=True
     )
@@ -375,7 +378,11 @@ class TransportOrder(Base):
     assigned_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     picked_up_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     delivered_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # Indexed: lists are sorted by it, and an unindexed sort reads the
+    # whole table on every page.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), index=True
+    )
 
     truck: Mapped[Optional["Truck"]] = relationship(
         back_populates="orders", foreign_keys=[truck_id]
@@ -416,7 +423,11 @@ class Trip(Base):
 
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # Indexed: lists are sorted by it, and an unindexed sort reads the
+    # whole table on every page.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), index=True
+    )
 
     truck: Mapped["Truck"] = relationship(back_populates="trips", foreign_keys=[truck_id])
     driver: Mapped[Optional["Driver"]] = relationship(back_populates="trips")

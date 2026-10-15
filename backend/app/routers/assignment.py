@@ -11,13 +11,14 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .. import schemas, serializers
 from ..clock import utcnow
 from ..database import get_db
 from ..pagination import PageParams, as_page, paginate
 from ..models import (
+    Company,
     Driver,
     LOAD_BEARING_ORDER_STATUSES,
     OPEN_ORDER_STATUSES,
@@ -277,6 +278,12 @@ def board(
                 TransportOrder.drop_name.ilike(term),
             )
         )
+    order_stmt = order_stmt.options(
+        selectinload(TransportOrder.company).selectinload(Company.account),
+        selectinload(TransportOrder.placed_by),
+        selectinload(TransportOrder.truck),
+        selectinload(TransportOrder.trip),
+    )
     order_rows, order_total = paginate(db, order_stmt, orders)
 
     # Trucks with room, computed in SQL so paging is correct.
@@ -313,7 +320,34 @@ def board(
         )
 
     truck_params = PageParams(page=truck_page, page_size=truck_page_size)
+    truck_stmt = truck_stmt.options(selectinload(Truck.driver))
     truck_rows, truck_total = paginate(db, truck_stmt, truck_params)
+
+    # Prefetched for the page, the same way the trucks list does it: the board
+    # shows two dozen trucks and truck_out would otherwise query each one's
+    # orders and trip separately.
+    board_truck_ids = [t.id for t in truck_rows]
+    board_orders: dict = {tid: [] for tid in board_truck_ids}
+    if board_truck_ids:
+        for order in db.scalars(
+            select(TransportOrder)
+            .where(TransportOrder.truck_id.in_(board_truck_ids))
+            .where(TransportOrder.status.in_(LOAD_BEARING_VALUES))
+            .order_by(TransportOrder.pickup_date)
+        ):
+            board_orders.setdefault(order.truck_id, []).append(order)
+
+    board_trip_ids = [t.current_trip_id for t in truck_rows if t.current_trip_id]
+    board_trips: dict = {}
+    if board_trip_ids:
+        board_trips = {
+            trip.id: trip
+            for trip in db.scalars(
+                select(Trip)
+                .where(Trip.id.in_(board_trip_ids))
+                .options(selectinload(Trip.stops))
+            )
+        }
 
     # Totals describe the whole backlog, not the page on screen.
     unassigned_tons = float(
@@ -340,7 +374,15 @@ def board(
             [serializers.order_out(o) for o in order_rows], order_total, orders
         ),
         "trucks": as_page(
-            [serializers.truck_out(db, t) for t in truck_rows],
+            [
+                serializers.truck_out(
+                    db,
+                    t,
+                    orders=board_orders.get(t.id, []),
+                    trip=board_trips.get(t.current_trip_id) if t.current_trip_id else None,
+                )
+                for t in truck_rows
+            ],
             truck_total,
             truck_params,
         ),

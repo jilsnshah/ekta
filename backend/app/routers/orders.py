@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .. import schemas, serializers
 from ..clock import utcnow
@@ -112,6 +112,17 @@ def list_orders(
                 TransportOrder.drop_name.ilike(term),
             )
         )
+
+    # Eager-loaded: the serializer reads each row's related records, which
+    # lazily would be a query per row. selectinload issues one extra query per
+    # relationship for the whole page instead, so the cost follows the number
+    # of relationships rather than the number of rows.
+    stmt = stmt.options(
+        selectinload(TransportOrder.company).selectinload(Company.account),
+        selectinload(TransportOrder.placed_by),
+        selectinload(TransportOrder.truck),
+        selectinload(TransportOrder.trip),
+    )
 
     rows, total = paginate(db, stmt, page)
     return as_page([serializers.order_out(o) for o in rows], total, page)

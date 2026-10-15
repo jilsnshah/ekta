@@ -107,111 +107,105 @@ def add_company(
     return company
 
 
-def _count_subqueries():
-    """Per-customer aggregates, as correlated subqueries.
+def _owned_orders_union(ids: List[int]):
+    """Every order belonging to any of `ids`, as (account_id, order_id, status, created_at).
 
-    Correlated rather than a query each: the database computes every figure
-    while building the row, so a page of customers is one round trip instead
-    of five per customer. On SQLite the difference is invisible; against a
-    network database it is the difference between 100ms and half a minute.
+    Two indexed branches rather than one OR-join: an order reaches a customer
+    either through the company it is billed to or through whoever placed it.
+    UNION rather than UNION ALL, so an order that satisfies both is counted
+    once.
+
+    Restricted to the ids on the page, which is the whole point -- the earlier
+    version ordered by a correlated subquery, so Postgres evaluated it for
+    every customer in the table (20,000 x 200,000 rows) before it could sort.
     """
-    finished = [OrderStatus.DELIVERED.value, OrderStatus.CANCELLED.value]
-
-    # The same ownership rule as orders_of, but written as an explicit join
-    # rather than a nested IN. A nested subquery pulls PartyAccount into its
-    # own FROM clause, which silently breaks the correlation and counts every
-    # order in the table for every customer.
-    def owned_orders():
-        return (
-            select(func.count(TransportOrder.id))
-            .select_from(TransportOrder)
-            .outerjoin(Company, TransportOrder.company_id == Company.id)
-            .where(
-                or_(
-                    TransportOrder.placed_by_account_id == PartyAccount.id,
-                    Company.account_id == PartyAccount.id,
-                )
-            )
-            .correlate(PartyAccount)
+    by_company = (
+        select(
+            Company.account_id.label("account_id"),
+            TransportOrder.id.label("order_id"),
+            TransportOrder.status.label("status"),
+            TransportOrder.created_at.label("created_at"),
         )
-
-    orders_total = owned_orders().scalar_subquery()
-    orders_open = (
-        owned_orders().where(TransportOrder.status.notin_(finished)).scalar_subquery()
+        .join(Company, TransportOrder.company_id == Company.id)
+        .where(Company.account_id.in_(ids))
     )
-    last_order = (
-        select(func.max(TransportOrder.created_at))
-        .select_from(TransportOrder)
-        .outerjoin(Company, TransportOrder.company_id == Company.id)
-        .where(
-            or_(
-                TransportOrder.placed_by_account_id == PartyAccount.id,
-                Company.account_id == PartyAccount.id,
-            )
-        )
-        .correlate(PartyAccount)
-        .scalar_subquery()
-    )
-    companies = (
-        select(func.count(Company.id))
-        .where(Company.account_id == PartyAccount.id)
-        .correlate(PartyAccount)
-        .scalar_subquery()
-    )
-    addresses = (
-        select(func.count(SavedPlace.id))
-        .where(SavedPlace.account_id == PartyAccount.id)
-        .correlate(PartyAccount)
-        .scalar_subquery()
-    )
-    return orders_total, orders_open, last_order, companies, addresses
+    by_placer = select(
+        TransportOrder.placed_by_account_id.label("account_id"),
+        TransportOrder.id.label("order_id"),
+        TransportOrder.status.label("status"),
+        TransportOrder.created_at.label("created_at"),
+    ).where(TransportOrder.placed_by_account_id.in_(ids))
+    return by_company.union(by_placer).subquery()
 
 
 def customers_page(db: Session, stmt, params) -> Tuple[List[schemas.CustomerOut], int]:
-    """A page of customers with their figures, in two round trips.
+    """A page of customers with their figures, in a handful of round trips.
 
     `stmt` selects PartyAccount rows and carries the filtering and ordering;
-    the counts are attached here so callers cannot forget them.
+    it must order by indexed columns only. Every aggregate below is scoped to
+    the ids actually on the page, so the cost follows the page size rather
+    than the size of the table.
     """
-    totals, opens, last, companies, addresses = _count_subqueries()
-    rows_stmt = stmt.add_columns(totals, opens, last, companies, addresses)
-
     total = (
         db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
     )
-    rows = db.execute(
-        rows_stmt.limit(params.page_size).offset(params.offset)
-    ).all()
+    accounts = list(db.scalars(stmt.limit(params.page_size).offset(params.offset)))
+    ids = [a.id for a in accounts]
+    if not ids:
+        return [], int(total)
 
-    # One more query for the names, rather than one per customer.
-    ids = [row[0].id for row in rows]
+    finished = [OrderStatus.DELIVERED.value, OrderStatus.CANCELLED.value]
+    owned = _owned_orders_union(ids)
+    order_stats = {
+        row.account_id: (row.total, row.open_count, row.last_at)
+        for row in db.execute(
+            select(
+                owned.c.account_id,
+                func.count(owned.c.order_id).label("total"),
+                func.count(owned.c.order_id)
+                .filter(owned.c.status.notin_(finished))
+                .label("open_count"),
+                func.max(owned.c.created_at).label("last_at"),
+            ).group_by(owned.c.account_id)
+        ).all()
+    }
+
     names: dict = {}
-    if ids:
-        for account_id, name in db.execute(
-            select(Company.account_id, Company.name)
-            .where(Company.account_id.in_(ids))
-            .order_by(Company.name)
-        ).all():
-            names.setdefault(account_id, []).append(name)
+    for account_id, name in db.execute(
+        select(Company.account_id, Company.name)
+        .where(Company.account_id.in_(ids))
+        .order_by(Company.name)
+    ).all():
+        names.setdefault(account_id, []).append(name)
 
-    items = [
-        schemas.CustomerOut(
-            id=account.id,
-            phone=display_phone(account.phone),
-            full_name=account.full_name,
-            is_active=account.is_active,
-            created_at=account.created_at,
-            last_login_at=account.last_login_at,
-            company_names=names.get(account.id, []),
-            company_count=int(company_count),
-            order_count=int(order_count),
-            open_order_count=int(open_count),
-            address_count=int(address_count),
-            last_order_at=last_order_at,
+    addresses = dict(
+        db.execute(
+            select(SavedPlace.account_id, func.count(SavedPlace.id))
+            .where(SavedPlace.account_id.in_(ids))
+            .group_by(SavedPlace.account_id)
+        ).all()
+    )
+
+    items = []
+    for account in accounts:
+        total_orders, open_orders, last_at = order_stats.get(account.id, (0, 0, None))
+        company_names = names.get(account.id, [])
+        items.append(
+            schemas.CustomerOut(
+                id=account.id,
+                phone=display_phone(account.phone),
+                full_name=account.full_name,
+                is_active=account.is_active,
+                created_at=account.created_at,
+                last_login_at=account.last_login_at,
+                company_names=company_names,
+                company_count=len(company_names),
+                order_count=int(total_orders or 0),
+                open_order_count=int(open_orders or 0),
+                address_count=int(addresses.get(account.id, 0)),
+                last_order_at=last_at,
+            )
         )
-        for account, order_count, open_count, last_order_at, company_count, address_count
-        in rows
-    ]
     return items, int(total)
 
 

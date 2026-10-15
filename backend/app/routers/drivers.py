@@ -4,13 +4,14 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .. import schemas, serializers
 from ..database import get_db
 from ..pagination import Page, PageParams, as_page, paginate
 from ..models import Driver, DriverStatus, Trip, TripStatus, Truck
 from ..security import current_user, require_admin
+from ..services import trips as trip_service
 
 router = APIRouter(prefix="/api/drivers", tags=["drivers"])
 
@@ -73,8 +74,49 @@ def list_drivers(
             )
         )
 
+    stmt = stmt.options(selectinload(Driver.truck))
     rows, total = paginate(db, stmt, page)
-    return as_page([serializers.driver_out(db, d) for d in rows], total, page)
+
+    # Prefetch for the whole page: driver_out otherwise looks up each driver's
+    # active trip and completed count separately.
+    driver_ids = [d.id for d in rows]
+    truck_ids = [d.truck.id for d in rows if d.truck]
+
+    active_by_truck: dict = {}
+    if truck_ids:
+        for trip in db.scalars(
+            select(Trip)
+            .where(Trip.truck_id.in_(truck_ids))
+            .where(Trip.status.in_(trip_service.ACTIVE_TRIP_STATUSES))
+            .order_by(Trip.created_at.desc())
+        ):
+            # Newest first, so the first seen for a truck is its active trip.
+            active_by_truck.setdefault(trip.truck_id, trip)
+
+    completed_by_driver: dict = {}
+    if driver_ids:
+        completed_by_driver = dict(
+            db.execute(
+                select(Trip.driver_id, func.count(Trip.id))
+                .where(Trip.driver_id.in_(driver_ids))
+                .where(Trip.status == TripStatus.COMPLETED.value)
+                .group_by(Trip.driver_id)
+            ).all()
+        )
+
+    return as_page(
+        [
+            serializers.driver_out(
+                db,
+                d,
+                active_trip=active_by_truck.get(d.truck.id) if d.truck else None,
+                completed_trips=completed_by_driver.get(d.id, 0),
+            )
+            for d in rows
+        ],
+        total,
+        page,
+    )
 
 
 @router.get("/stats", response_model=schemas.DriverStats)

@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .. import schemas, serializers
 from ..database import get_db
@@ -136,8 +136,45 @@ def list_trucks(
             )
         )
 
+    stmt = stmt.options(selectinload(Truck.driver))
     rows, total = paginate(db, stmt, page)
-    return as_page([serializers.truck_out(db, t) for t in rows], total, page)
+
+    # Prefetch for the whole page: on its own truck_out fetches each truck's
+    # load-bearing orders and current trip, which is three queries a row.
+    truck_ids = [t.id for t in rows]
+    orders_by_truck: dict = {tid: [] for tid in truck_ids}
+    if truck_ids:
+        for order in db.scalars(
+            select(TransportOrder)
+            .where(TransportOrder.truck_id.in_(truck_ids))
+            .where(TransportOrder.status.in_(LOAD_BEARING_VALUES))
+            .order_by(TransportOrder.pickup_date)
+        ):
+            orders_by_truck.setdefault(order.truck_id, []).append(order)
+
+    trip_ids = [t.current_trip_id for t in rows if t.current_trip_id]
+    trips_by_id: dict = {}
+    if trip_ids:
+        trips_by_id = {
+            trip.id: trip
+            for trip in db.scalars(
+                select(Trip).where(Trip.id.in_(trip_ids)).options(selectinload(Trip.stops))
+            )
+        }
+
+    return as_page(
+        [
+            serializers.truck_out(
+                db,
+                t,
+                orders=orders_by_truck.get(t.id, []),
+                trip=trips_by_id.get(t.current_trip_id) if t.current_trip_id else None,
+            )
+            for t in rows
+        ],
+        total,
+        page,
+    )
 
 
 @router.get("/{truck_id}", response_model=schemas.TruckOut)
